@@ -7,6 +7,8 @@
 
 import 'dart:convert';
 
+import 'package:moonswing/todo/todo_checklist.dart';
+
 /// The board's five columns, left to right.
 ///
 /// The order *is* the board: [TodoColumn.values] is what the overlay lays out,
@@ -965,7 +967,9 @@ List<TodoItem> decodeTodoFile(String source) {
 /// [TodoColumn.todo], due on the day it was scheduled for, and *takes the rule
 /// with it*: the newest copy is the one that carries the recurrence, so editing
 /// or deleting it is how a repeating item is changed or stopped, and an old copy
-/// left in Finished cannot keep spawning. [newId] mints an id per copy.
+/// left in Finished cannot keep spawning. The copy's checklist (see
+/// `todo_checklist.dart`) starts with every step unticked, since each copy is
+/// the job to do again. [newId] mints an id per copy.
 List<TodoItem>? spawnRecurring(
   List<TodoItem> items,
   DateTime today,
@@ -988,7 +992,7 @@ List<TodoItem>? spawnRecurring(
       TodoItem(
         id: newId(),
         title: item.title,
-        body: item.body,
+        body: untickAllInBody(item.body),
         column: TodoColumn.todo,
         created: now,
         due: owed,

@@ -500,6 +500,33 @@ void main() {
     });
   });
 
+  group('schema 6', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('todo_db_six'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('a database with the old checklist column still opens', () {
+      final path = '${dir.path}/notes.db';
+      final first = TodoDatabase.open(path);
+      first.apply(_board([_item('a', title: 'Kept')]), at: at);
+      first.close();
+      // As the unreleased build left it: its own column, at schema 6.
+      final raw = sqlite3.open(path);
+      raw.execute('ALTER TABLE entries ADD COLUMN checklist TEXT');
+      raw.execute(
+        "UPDATE entries SET checklist = '[{\"text\":\"x\"}]' WHERE id = 'a'",
+      );
+      raw.close();
+
+      final db = TodoDatabase.open(path);
+      addTearDown(db.close);
+      final card = db.readAll().todos.single;
+      expect(card.title, 'Kept');
+      db.apply(_board([card.copyWith(body: '- [ ] Step')]), at: at);
+      expect(db.readAll().todos.single.body, '- [ ] Step');
+    });
+  });
+
   group('query building', () {
     test('quotes every term and doubles its quotes', () {
       expect(ftsQueryFor(['bug', 'say "hi"']), '"bug" "say ""hi"""');

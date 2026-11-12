@@ -24,7 +24,11 @@ import 'package:moonswing/todo/todo_standup.dart';
 ///  4. `entries.remote`: the task a card is on the synced CalDAV task list;
 ///     `remote_tombstones`: tasks deleted here and still owed a delete there.
 ///  5. `entries.sticky`: a note's colour, size and place on the overview.
-const int kTodoSchemaVersion = 5;
+///  6. Nothing. An unreleased build kept a card's checklist in a column of its
+///     own; the checklist is now a part of the body (`todo_checklist.dart`),
+///     and the version is taken so a database that build wrote still opens.
+///     Its column, where there is one, is never read.
+const int kTodoSchemaVersion = 6;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
 /// `sqlite3_libversion_number` spells it.

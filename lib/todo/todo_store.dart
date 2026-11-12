@@ -8,6 +8,7 @@ import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_calendar_sync.dart';
 import 'package:moonswing/todo/todo_caldav_map.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_standup.dart';
@@ -647,6 +648,21 @@ class TodoStore extends ChangeNotifier {
     // A column change from the editor lands at the top of its new column, the
     // way a new item does.
     _moveItem(edited, column, beforeId: _firstIdIn(column));
+  }
+
+  /// Ticks (or unticks) step [index] of [id]'s checklist, which is a line of
+  /// its body (see `todo_checklist.dart`), so the tick is an edit to the notes
+  /// and goes to the task list as one. Nothing else about the card moves:
+  /// finishing the last step is not finishing the card, which is still the
+  /// user's to drag to Finished.
+  void setChecked(String id, int index, {required bool done}) {
+    final current = item(id);
+    if (!editable || current == null) return;
+    final body = setCheckedInBody(current.body, index, done: done);
+    if (body == null || body == current.body) return;
+    _commit([
+      for (final i in _items) i.id == id ? i.copyWith(body: body) : i,
+    ]);
   }
 
   /// Moves [id] into [column], just above [beforeId] — or to the bottom of the

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/caldav/ical.dart';
 import 'package:moonswing/todo/todo_caldav_map.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_model.dart';
 
 final DateTime _now = DateTime(2026, 9, 29, 10);
@@ -101,6 +102,27 @@ void main() {
       expect(t.property('STATUS')!.value, 'NEEDS-ACTION');
       expect(t.property('COMPLETED'), isNull);
       expect(t.property('PERCENT-COMPLETE'), isNull);
+    });
+  });
+
+  group('checklists', () {
+    test('travel in the notes, and a tick from the phone comes back', () {
+      const body = 'Notes\n\n- [x] Draft\n- [ ] Send';
+      final sent = writeTask(_card('c', body: body), now: _now);
+      // Any client shows it as the lines it is.
+      expect(_fields(sent).body, body);
+
+      final ticked = sent.replaceFirst(r'- [ ] Send', r'- [x] Send');
+      final remote = _fields(ticked);
+      expect(parseTodoBody(remote.body).checklist.map((s) => s.done), [
+        true,
+        true,
+      ]);
+      // Unchanged here, so the phone's tick is the merge's answer.
+      final base = _fields(sent);
+      final merged = mergeTaskFields(base, base, remote);
+      expect(merged.conflicts, isEmpty);
+      expect(merged.fields.body, 'Notes\n\n- [x] Draft\n- [x] Send');
     });
   });
 

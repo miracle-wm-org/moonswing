@@ -24,6 +24,7 @@ import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_board.dart';
@@ -79,6 +80,20 @@ Future<void> sendCtrl(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   await tester.pumpAndSettle();
 }
+
+/// Opens the card titled [title] and then its editor: a click opens the
+/// card's details, whose Edit opens the editor.
+Future<void> openEditor(WidgetTester tester, String title) async {
+  await tester.tap(find.text(title));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Edit'));
+  await tester.pumpAndSettle();
+}
+
+/// The details card a click on a card opens.
+final Finder detailsCard = find.byWidgetPredicate(
+  (w) => w.runtimeType.toString() == '_TodoDetails',
+);
 
 /// [child] under the board's [TransientScope], as the shell builds it.
 Widget _maybeScoped(TransientHandle? board, Widget child) =>
@@ -295,7 +310,7 @@ void main() {
     expect(store.itemsIn(TodoColumn.todo).map((i) => i.id), ['b', 'a', 'c']);
   });
 
-  testWidgets('clicking a card opens it with its history', (tester) async {
+  testWidgets('a card\'s editor shows its history', (tester) async {
     await pump(tester, [
       _item(
         'a',
@@ -314,12 +329,195 @@ void main() {
         ],
       ),
     ]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     expect(find.text('Edit item'), findsOneWidget);
     expect(find.text('Created in Inbox'), findsOneWidget);
     expect(find.text('Inbox → In Progress'), findsOneWidget);
     expect(find.text('22 Sep 2026, 08:05'), findsWidgets);
+  });
+
+  testWidgets('resting on a card shows its whole title, after a while', (
+    tester,
+  ) async {
+    const title =
+        'A title long enough that the card cuts it off at two lines, which is '
+        'why the pointer resting on the card has to be able to read the rest '
+        'of it without opening the card at all';
+    await pump(tester, [_item('a', TodoColumn.inbox).copyWith(title: title)]);
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(800, 990));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+
+    await gesture.moveTo(tester.getCenter(find.text(title)));
+    await tester.pump(const Duration(milliseconds: 500));
+    // Not on every pass of the pointer: the card's own title only.
+    expect(find.text(title), findsOneWidget);
+    await tester.pump(kTodoCardTooltipDelay);
+    expect(find.text(title), findsNWidgets(2));
+
+    await gesture.moveTo(const Offset(800, 990));
+    await tester.pump();
+    expect(find.text(title), findsOneWidget);
+  });
+
+  testWidgets('a click opens a card\'s details, where its checklist ticks', (
+    tester,
+  ) async {
+    // A step among the text, as another client might have put it.
+    final store = await pump(tester, [
+      _item('a', TodoColumn.inProgress).copyWith(
+        body: '- [x] Draft\nBody of a\n\n* [ ] Review\n- [ ] Send',
+      ),
+    ]);
+    List<bool> ticks() => [
+      for (final step in parseTodoBody(store.item('a')!.body).checklist)
+        step.done,
+    ];
+    // The card's face carries the count beside its bar, and the steps are
+    // not drawn as text.
+    expect(find.text('1/3'), findsOneWidget);
+    expect(find.textContaining('[ ]'), findsNothing);
+
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    expect(detailsCard, findsOneWidget);
+    Finder inDetails(String text) =>
+        find.descendant(of: detailsCard, matching: find.text(text));
+    expect(inDetails('Card a'), findsOneWidget);
+    expect(inDetails('Body of a'), findsOneWidget);
+    expect(inDetails('In Progress'), findsOneWidget);
+    expect(inDetails('1 of 3 done'), findsOneWidget);
+    expect(inDetails('33%'), findsOneWidget);
+    // Opening it is not editing it.
+    expect(find.text('Edit item'), findsNothing);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo board');
+
+    // A tick is written as it is made, and the card behind follows.
+    await tester.tap(find.text('Review'));
+    await tester.pumpAndSettle();
+    expect(ticks(), [true, true, false]);
+    expect(inDetails('67%'), findsOneWidget);
+    expect(find.text('2/3'), findsOneWidget);
+    await tester.tap(find.text('Draft'));
+    await tester.pumpAndSettle();
+    expect(ticks(), [false, true, false]);
+    // Ticked where it stands, nothing else about the body moved.
+    expect(
+      store.item('a')!.body,
+      '- [ ] Draft\nBody of a\n\n* [x] Review\n- [ ] Send',
+    );
+    // The card is still where it was: a checklist is not its column.
+    expect(store.item('a')!.column, TodoColumn.inProgress);
+
+    // A click off the card closes it; there is no draft to lose.
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(detailsCard, findsNothing);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
+  });
+
+  testWidgets('a card\'s details delete it, once asked', (tester) async {
+    final store = await pump(tester, [
+      _item('a', TodoColumn.inbox),
+      _item('b', TodoColumn.inbox),
+    ]);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: detailsCard, matching: find.text('Delete')),
+    );
+    await tester.pumpAndSettle();
+    final confirm = find.byType(SettingsConfirmCard);
+    expect(confirm, findsOneWidget);
+    expect(store.item('a'), isNotNull);
+
+    await tester.tap(
+      find.descendant(of: confirm, matching: find.text('Delete')),
+    );
+    await tester.pumpAndSettle();
+    expect(store.item('a'), isNull);
+    expect(store.item('b'), isNotNull);
+    expect(detailsCard, findsNothing);
+  });
+
+  testWidgets('the editor writes a checklist, blank lines left out', (
+    tester,
+  ) async {
+    final store = await pump(tester, [
+      _item(
+        'a',
+        TodoColumn.todo,
+      ).copyWith(body: 'Body of a\n\n- [x] First\n- [ ] Second'),
+    ]);
+    await openEditor(tester, 'Card a');
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(find.text('1 of 2 done'), findsOneWidget);
+    // The description field holds the text alone.
+    expect(
+      tester
+          .widgetList<SettingsTextField>(find.byType(SettingsTextField))
+          .map((f) => f.controller?.text),
+      contains('Body of a'),
+    );
+
+    // One more line, from the list's own adder.
+    await tester.tap(find.text('Add a step'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(SettingsListAddField),
+        matching: find.byType(EditableText),
+      ),
+      'Third',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 3 done'), findsOneWidget);
+
+    // The first line removed, and the second emptied: neither is written.
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is SettingsIconButton && w.tooltip == 'Remove this step',
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    // The lines' own fields, not the adder's, which stays open for another.
+    final lines = find.byWidgetPredicate(
+      (w) => w is SettingsTextField && w.hint == 'A step',
+    );
+    expect(lines, findsNWidgets(2));
+    await tester.enterText(
+      find.descendant(of: lines.first, matching: find.byType(EditableText)),
+      '  ',
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    // Written into the body as a task list, which is what a task list syncs.
+    expect(store.item('a')!.body, 'Body of a\n\n- [ ] Third');
+    // Back on the details, which draw the new list.
+    expect(detailsCard, findsOneWidget);
+    expect(find.text('0 of 1 done'), findsOneWidget);
+  });
+
+  testWidgets('a save that changes neither keeps the body as it was', (
+    tester,
+  ) async {
+    const body = 'Step one first:\n- [ ] One\nthen the rest.';
+    final store = await pump(tester, [
+      _item('a', TodoColumn.todo).copyWith(body: body),
+    ]);
+    await openEditor(tester, 'Card a');
+    await tester.tap(find.text('Tomorrow'));
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.item('a')!.due, DateTime(2026, 9, 25));
+    expect(store.item('a')!.body, body);
   });
 
   testWidgets('a link in a card opens its address, not the card', (
@@ -356,11 +554,11 @@ void main() {
       'https://example.com/title',
       'https://www.example.org/notes',
     ]);
-    expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsNothing);
 
     // The words before the link still open the card.
     await tapCharacter('Read https://example.com/title', 1);
-    expect(find.text('Edit item'), findsOneWidget);
+    expect(detailsCard, findsOneWidget);
     expect(opened, hasLength(2));
   });
 
@@ -408,7 +606,7 @@ void main() {
     await tester.tap(find.text('Fix the thing #12', findRichText: true));
     await tester.pumpAndSettle();
     expect(opened, [url]);
-    expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsNothing);
 
     // Signed out, the address is the address again.
     account.seed(stage: GithubAuthStage.signedOut);
@@ -417,18 +615,28 @@ void main() {
     expect(find.text('Review $url', findRichText: true), findsOneWidget);
   });
 
-  testWidgets('Escape closes the editor, then the board', (tester) async {
+  testWidgets('Escape closes the editor, then the details, then the board', (
+    tester,
+  ) async {
     await pump(tester, [_item('a', TodoColumn.inbox)]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     expect(find.text('Edit item'), findsOneWidget);
+    expect(detailsCard, findsNothing);
 
+    // Back to the details it was opened from.
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsOneWidget);
     expect(closing.value, isFalse);
     // Answered here: the overview's own Escape would close everything.
     expect(escapesPast, 0);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(detailsCard, findsNothing);
+    expect(closing.value, isFalse);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -441,8 +649,7 @@ void main() {
     await pump(tester, [
       _item('a', TodoColumn.inbox, due: DateTime(2026, 9, 30)),
     ]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     final pickers = find.byType(SettingsDatePickerButton);
     expect(pickers, findsOneWidget);
     // It opens on what the field holds, and on the calendar's week.
@@ -483,8 +690,7 @@ void main() {
     addTearDown(() => PopupCoordinator.instance.close(board));
 
     await pump(tester, [_item('a', TodoColumn.inbox)], board: board);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     expect(find.text('Edit item'), findsOneWidget);
 
     // Opened after the click that opened the editor, which would have closed
@@ -515,8 +721,7 @@ void main() {
     await pump(tester, [
       _item('a', TodoColumn.inbox, due: DateTime(2026, 9, 30)),
     ]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     final card = find.byType(SettingsDatePickerCard);
     expect(card, findsNothing);
     final registered = PopupCoordinator.instance.openHandles.length;
@@ -539,8 +744,7 @@ void main() {
     tester,
   ) async {
     await pump(tester, [_item('a', TodoColumn.inbox)]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     final button = find.byType(SettingsDatePickerButton);
     final card = find.byType(SettingsDatePickerCard);
     final registered = PopupCoordinator.instance.openHandles.length;
@@ -573,8 +777,7 @@ void main() {
     );
     addTearDown(() => PopupCoordinator.instance.close(board));
     await pump(tester, [_item('a', TodoColumn.inbox)], board: board);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
 
     await tester.tap(find.byType(SettingsDatePickerButton));
     await tester.pumpAndSettle();
@@ -641,8 +844,7 @@ void main() {
     tester,
   ) async {
     await pump(tester, [_item('a', TodoColumn.inbox)]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo title');
     await tester.enterText(
       find
@@ -656,9 +858,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(find.text('Renamed'), findsOneWidget);
+    // Back on the details, renamed there and on the card behind them.
+    expect(detailsCard, findsOneWidget);
+    expect(find.text('Renamed'), findsNWidgets(2));
 
-    // The keyboard goes back to the search, so Escape still closes the board.
+    // The keyboard is the board's, not left in the editor that went away, so
+    // Escape closes the details and then the board.
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo board');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(detailsCard, findsNothing);
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -748,14 +957,14 @@ void main() {
     expect(find.text('Copy title'), findsOneWidget);
     expect(find.text('Copy description'), findsOneWidget);
     // A right click opens the menu, never the card, and does not pick it up.
-    expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsNothing);
     expect(store.item('a')!.column, TodoColumn.inbox);
 
     await tester.tap(find.text('Copy title'));
     await tester.pumpAndSettle();
     expect(copied, ['Ship it']);
     expect(find.text('Copy title'), findsNothing);
-    expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsNothing);
 
     await rightClick(tester, find.text('Ship it'));
     await tester.tap(find.text('Copy description'));
@@ -784,7 +993,7 @@ void main() {
     await tester.tap(find.text('Card b'));
     await tester.pumpAndSettle();
     expect(find.text('Copy title'), findsNothing);
-    expect(find.text('Edit item'), findsNothing);
+    expect(detailsCard, findsNothing);
 
     await rightClick(tester, find.text('Card a'));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -1213,8 +1422,7 @@ void main() {
     tester,
   ) async {
     final store = await pump(tester, [_item('a', TodoColumn.todo)]);
-    await tester.tap(find.text('Card a'));
-    await tester.pumpAndSettle();
+    await openEditor(tester, 'Card a');
     await tester.tap(
       find.byWidgetPredicate(
         (w) => w.runtimeType.toString() == 'SettingsToggle',

@@ -6,8 +6,9 @@
 // and the day turning over; `todo_model.dart` owns every date rule, and
 // [TodoBoardSearch] what the search field leaves showing. This file is the
 // panel, the search field, the columns, the cards, drag and drop between them,
-// a card's right-click menu, and the editor that creates and changes one. The
-// backups card over it is `todo_backup_panel.dart`.
+// a card's right-click menu, the details a click opens (where a checklist is
+// ticked off), and the editor that creates and changes one. The backups card
+// over it is `todo_backup_panel.dart`.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -37,6 +38,7 @@ import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_layout.dart';
 import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
@@ -53,14 +55,28 @@ const double kTodoEditorWidth = 540;
 /// The search field's width in the header.
 const double kTodoSearchWidth = 320;
 
+/// How long the pointer rests on a card before its whole title is shown.
+///
+/// Longer than an icon button's tip: the card is what is being read, and a
+/// label over every card the pointer crosses on its way across the board is in
+/// the way of reading them.
+const Duration kTodoCardTooltipDelay = Duration(milliseconds: 1000);
+
 /// What the editor was opened for: an existing item, or a new one in a column.
 @immutable
 class _EditRequest {
-  const _EditRequest.edit(String this.id) : column = null;
-  const _EditRequest.create(TodoColumn this.column) : id = null;
+  const _EditRequest.edit(String this.id, {this.fromDetails = false})
+    : column = null;
+  const _EditRequest.create(TodoColumn this.column)
+    : id = null,
+      fromDetails = false;
 
   final String? id;
   final TodoColumn? column;
+
+  /// Whether the editor was opened from the card's details, which closing it
+  /// goes back to.
+  final bool fromDetails;
 }
 
 /// The todo board and its backdrop.
@@ -196,6 +212,10 @@ class _TodoBoardState extends State<TodoBoard> {
   /// The open card menu, or null. A notifier for [_editing]'s reason.
   final ValueNotifier<_CardMenuRequest?> _menu = ValueNotifier(null);
 
+  /// The card whose details are open, or null. A notifier for [_editing]'s
+  /// reason.
+  final ValueNotifier<String?> _viewing = ValueNotifier(null);
+
   /// The panel's layer stack, which a card menu's position is measured in.
   final GlobalKey _layersKey = GlobalKey(debugLabel: 'todo layers');
 
@@ -214,6 +234,10 @@ class _TodoBoardState extends State<TodoBoard> {
       searchField: _buildSearchField(context),
       editing: _editing,
       onEditorDone: _closeEditor,
+      viewing: _viewing,
+      onOpenCard: _openDetails,
+      onDetailsDone: _closeDetails,
+      onEditFromDetails: _editFromDetails,
       menu: _menu,
       layersKey: _layersKey,
       copyError: _copyError,
@@ -230,10 +254,39 @@ class _TodoBoardState extends State<TodoBoard> {
 
   /// Closes the editor and gives the keyboard back to the search field: the
   /// editor's title had it, and a focus left on nothing would leave Escape and
-  /// Ctrl+F with no one to hear them.
+  /// Ctrl+F with no one to hear them. An editor opened from a card's details
+  /// goes back to them, unless it deleted the card.
   void _closeEditor() {
+    final request = _editing.value;
     _editing.value = null;
+    final id = request?.id;
+    if (request != null &&
+        request.fromDetails &&
+        id != null &&
+        _store.item(id) != null) {
+      _openDetails(id);
+    } else {
+      _searchFocus.requestFocus();
+    }
+  }
+
+  /// Opens [id]'s details. The keyboard goes to the board's own node rather
+  /// than staying in the search field behind the scrim, where a key typed at
+  /// the details card would quietly filter the board under it; the board's
+  /// handler is what hears Escape either way.
+  void _openDetails(String id) {
+    _viewing.value = id;
+    _focusNode.requestFocus();
+  }
+
+  void _closeDetails() {
+    _viewing.value = null;
     _searchFocus.requestFocus();
+  }
+
+  void _editFromDetails(String id) {
+    _viewing.value = null;
+    _editing.value = _EditRequest.edit(id, fromDetails: true);
   }
 
   /// Copies [text] from a card menu, saying so on the board if it could not.
@@ -281,17 +334,23 @@ class _TodoBoardState extends State<TodoBoard> {
         HardwareKeyboard.instance.isControlPressed &&
         _menu.value == null &&
         _editing.value == null &&
+        _viewing.value == null &&
         !_backups.value &&
         !_standup.value) {
       _focusSearch();
       return KeyEventResult.handled;
     }
     if (key != LogicalKeyboardKey.escape) return KeyEventResult.ignored;
+    // Details whose card went from under them (a sync, a restore) draw
+    // nothing, and are not a layer for Escape to spend itself on.
+    if (_viewing.value case final id? when _store.item(id) == null) {
+      _viewing.value = null;
+    }
     // Escape backs out one layer at a time: a date picker, a card menu, the
-    // editor, then the search, then the board. The picker floats in the
-    // window's root overlay, out of the board's reach, and registers with the
-    // coordinator as a child of the board, so it is the coordinator that knows
-    // it is open.
+    // editor, a card's details, then the search, then the board. The picker
+    // floats in the window's root overlay, out of the board's reach, and
+    // registers with the coordinator as a child of the board, so it is the
+    // coordinator that knows it is open.
     if (PopupCoordinator.instance.dismissChildren(
       TransientScope.maybeOf(context),
     )) {
@@ -301,6 +360,8 @@ class _TodoBoardState extends State<TodoBoard> {
       _menu.value = null;
     } else if (_editing.value != null) {
       _closeEditor();
+    } else if (_viewing.value != null) {
+      _closeDetails();
     } else if (_backups.value) {
       _backups.value = false;
       _searchFocus.requestFocus();
@@ -324,6 +385,7 @@ class _TodoBoardState extends State<TodoBoard> {
     _folds.dispose();
     _search.dispose();
     _editing.dispose();
+    _viewing.dispose();
     _menu.dispose();
     _copyError.dispose();
     _backups.dispose();
@@ -375,6 +437,10 @@ class _TodoPanel extends StatelessWidget {
     required this.searchField,
     required this.editing,
     required this.onEditorDone,
+    required this.viewing,
+    required this.onOpenCard,
+    required this.onDetailsDone,
+    required this.onEditFromDetails,
     required this.menu,
     required this.layersKey,
     required this.copyError,
@@ -402,6 +468,10 @@ class _TodoPanel extends StatelessWidget {
   final Widget searchField;
   final ValueNotifier<_EditRequest?> editing;
   final VoidCallback onEditorDone;
+  final ValueNotifier<String?> viewing;
+  final ValueChanged<String> onOpenCard;
+  final VoidCallback onDetailsDone;
+  final ValueChanged<String> onEditFromDetails;
   final ValueNotifier<_CardMenuRequest?> menu;
 
   /// On the [Stack] the editor, the other cards and the menu are layered in.
@@ -420,6 +490,21 @@ class _TodoPanel extends StatelessWidget {
           child: ListenableBuilder(
             listenable: board,
             builder: (context, _) => _buildBoard(context, theme),
+          ),
+        ),
+        Positioned.fill(
+          child: ValueListenableBuilder<String?>(
+            valueListenable: viewing,
+            builder: (context, id, _) => id == null
+                ? const SizedBox.shrink()
+                : _DetailsLayer(
+                    key: ValueKey(id),
+                    store: store,
+                    id: id,
+                    onEdit: () => onEditFromDetails(id),
+                    onDone: onDetailsDone,
+                    onOpenLink: onOpenLink,
+                  ),
           ),
         ),
         Positioned.fill(
@@ -601,8 +686,7 @@ class _TodoPanel extends StatelessWidget {
                             terms: search.terms,
                             folds: folds,
                             store: store,
-                            onEdit: (id) =>
-                                editing.value = _EditRequest.edit(id),
+                            onOpen: onOpenCard,
                             onMenu: _openMenu,
                             onOpenLink: onOpenLink,
                             onAdd: () =>
@@ -743,7 +827,7 @@ class _ColumnView extends StatelessWidget {
     required this.terms,
     required this.folds,
     required this.store,
-    required this.onEdit,
+    required this.onOpen,
     required this.onMenu,
     required this.onOpenLink,
     required this.onAdd,
@@ -762,7 +846,9 @@ class _ColumnView extends StatelessWidget {
   final List<String> terms;
   final _DayFoldsNotifier folds;
   final TodoStore store;
-  final ValueChanged<String> onEdit;
+
+  /// Opens a card's details.
+  final ValueChanged<String> onOpen;
   final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
   final VoidCallback onAdd;
@@ -898,7 +984,7 @@ class _ColumnView extends StatelessWidget {
                   terms: terms,
                   width: constraints.maxWidth - 16,
                   store: store,
-                  onEdit: onEdit,
+                  onOpen: onOpen,
                   onMenu: onMenu,
                   onOpenLink: onOpenLink,
                 ),
@@ -1039,7 +1125,7 @@ class _DraggableCard extends StatelessWidget {
     required this.terms,
     required this.width,
     required this.store,
-    required this.onEdit,
+    required this.onOpen,
     required this.onMenu,
     required this.onOpenLink,
   });
@@ -1048,7 +1134,7 @@ class _DraggableCard extends StatelessWidget {
   final List<String> terms;
   final double width;
   final TodoStore store;
-  final ValueChanged<String> onEdit;
+  final ValueChanged<String> onOpen;
   final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
 
@@ -1062,11 +1148,19 @@ class _DraggableCard extends StatelessWidget {
       onOpenLink: onOpenLink,
     );
     final stripe = calendarCardColor(item, theme);
-    final card = HoverRegion(
-      onTap: () => onEdit(item.id),
-      onSecondaryTapDown: (details) => onMenu(item, details.globalPosition),
-      builder: (context, hovered) =>
-          _CardChrome(hovered: hovered, stripe: stripe, child: face),
+    final title = item.title.trim();
+    // The whole title once the pointer has rested on the card, since the face
+    // cuts a long one off at two lines. Inside the drag: a press hides it, so
+    // it never rides along with a card being carried.
+    final card = SettingsTooltip(
+      message: title.isEmpty ? null : title,
+      delay: kTodoCardTooltipDelay,
+      child: HoverRegion(
+        onTap: () => onOpen(item.id),
+        onSecondaryTapDown: (details) => onMenu(item, details.globalPosition),
+        builder: (context, hovered) =>
+            _CardChrome(hovered: hovered, stripe: stripe, child: face),
+      ),
     );
     if (!store.editable) return RepaintBoundary(child: card);
     return DragTarget<String>(
@@ -1084,6 +1178,11 @@ class _DraggableCard extends StatelessWidget {
           RepaintBoundary(
             child: Draggable<String>(
               data: item.id,
+              // Translucent, because the card's tooltip is not: a
+              // `MouseRegion(opaque: false)` answers every hit test with
+              // "missed", so a drag that deferred to its child would never
+              // hear the press that picks the card up.
+              hitTestBehavior: HitTestBehavior.translucent,
               // The feedback floats in the board's own Overlay, outside the
               // column's constraints, so it is given the column's width.
               feedback: SizedBox(
@@ -1260,6 +1359,7 @@ class _CardFace extends StatefulWidget {
     required this.today,
     required this.onOpenLink,
     this.terms = const [],
+    this.expanded = false,
   });
 
   final TodoItem item;
@@ -1268,6 +1368,11 @@ class _CardFace extends StatefulWidget {
 
   /// What the search matched, drawn highlighted.
   final List<String> terms;
+
+  /// The card's details rather than its face: the title and description in
+  /// full and a size up, the facts between them, and no checklist bar — the
+  /// details draw the checklist itself.
+  final bool expanded;
 
   @override
   State<_CardFace> createState() => _CardFaceState();
@@ -1305,7 +1410,11 @@ class _CardFaceState extends State<_CardFace> {
   @override
   Widget build(BuildContext context) {
     final title = widget.item.title.trim();
-    final body = widget.item.body.trim();
+    // The checklist's lines are drawn as a bar here and as boxes in the
+    // details, never as text.
+    final parsed = parseTodoBody(widget.item.body);
+    final body = parsed.description;
+    final checklist = parsed.checklist;
     final titleLinks = findLinks(title);
     final bodyLinks = findLinks(body);
     _forgetAllBut([...titleLinks, ...bodyLinks]);
@@ -1314,13 +1423,30 @@ class _CardFaceState extends State<_CardFace> {
         link.url: ?parseGithubRef(link.url),
     };
     if (refs.isEmpty) {
-      return _face(context, title, body, titleLinks, bodyLinks, refs, null);
+      return _face(
+        context,
+        title,
+        body,
+        checklist,
+        titleLinks,
+        bodyLinks,
+        refs,
+        null,
+      );
     }
     final githubLinks = AccountsScope.githubLinksOf(context);
     return ListenableBuilder(
       listenable: githubLinks,
-      builder: (context, _) =>
-          _face(context, title, body, titleLinks, bodyLinks, refs, githubLinks),
+      builder: (context, _) => _face(
+        context,
+        title,
+        body,
+        checklist,
+        titleLinks,
+        bodyLinks,
+        refs,
+        githubLinks,
+      ),
     );
   }
 
@@ -1328,6 +1454,7 @@ class _CardFaceState extends State<_CardFace> {
     BuildContext context,
     String title,
     String body,
+    List<TodoCheckItem> checklist,
     List<TodoLink> titleLinks,
     List<TodoLink> bodyLinks,
     Map<String, GithubRef> refs,
@@ -1349,6 +1476,9 @@ class _CardFaceState extends State<_CardFace> {
       decorationColor: theme.accent,
     );
     final chips = githubLinks != null && githubLinks.enabled;
+    final expanded = widget.expanded;
+    final titleSize = expanded ? ShellFontSizes.title : ShellFontSizes.body;
+    final bodySize = expanded ? ShellFontSizes.body : ShellFontSizes.secondary;
     List<InlineSpan> spans(String text, List<TodoLink> links, double size) =>
         highlightMatchesWithChips(
           text,
@@ -1371,63 +1501,194 @@ class _CardFaceState extends State<_CardFace> {
             );
           },
         );
+    final titleText = Text.rich(
+      TextSpan(
+        children: title.isEmpty
+            ? [const TextSpan(text: 'Untitled')]
+            : spans(title, titleLinks, titleSize),
+      ),
+      maxLines: expanded ? null : 2,
+      overflow: expanded ? null : TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: titleSize,
+        fontWeight: FontWeight.w600,
+        color: title.isEmpty ? dim : theme.popupForeground,
+      ),
+    );
+    final bodyText = Text.rich(
+      TextSpan(children: spans(body, bodyLinks, bodySize)),
+      maxLines: expanded ? null : 3,
+      overflow: expanded ? null : TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: bodySize,
+        height: expanded ? 1.4 : null,
+        color: expanded ? theme.popupForeground.withValues(alpha: 0.85) : dim,
+      ),
+    );
+    final facts = Wrap(
+      spacing: 10,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (due != null) _DueChip(item: item, due: due, today: widget.today),
+        if (recurrence != null)
+          _Fact(icon: ShellGlyph.repeat, label: recurrence.describe()),
+        if (item.external case final e?)
+          _Fact(
+            icon: ShellGlyph.calendar,
+            label: e.calendar ?? 'Calendar',
+            iconColor: calendarCardColor(item, theme),
+          ),
+        if (item.external?.link case final join? when item.column.isOpen)
+          _JoinChip(onTap: () => widget.onOpenLink(join)),
+        _Fact(icon: ShellGlyph.clock, label: formatMoment(item.movedAt)),
+      ],
+    );
+    if (expanded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          titleText,
+          const SizedBox(height: 8),
+          facts,
+          const SizedBox(height: 16),
+          const _Label('Description'),
+          if (body.isNotEmpty)
+            bodyText
+          else
+            Text(
+              'No description',
+              style: TextStyle(fontSize: bodySize, color: dim),
+            ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text.rich(
-          TextSpan(
-            children: title.isEmpty
-                ? [const TextSpan(text: 'Untitled')]
-                : spans(title, titleLinks, ShellFontSizes.body),
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: ShellFontSizes.body,
-            fontWeight: FontWeight.w600,
-            color: title.isEmpty ? dim : theme.popupForeground,
-          ),
-        ),
-        if (body.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text.rich(
-            TextSpan(
-              children: spans(body, bodyLinks, ShellFontSizes.secondary),
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: ShellFontSizes.secondary, color: dim),
-          ),
+        titleText,
+        if (body.isNotEmpty) ...[const SizedBox(height: 4), bodyText],
+        if (checklist.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _ChecklistBar(checklist: checklist),
         ],
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 10,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        facts,
+      ],
+    );
+  }
+}
+
+/// How far through its checklist a card is: a bar filled to the share of
+/// lines ticked, and the count. [large] is the details' and the editor's — a
+/// thicker bar, the count in words and the percentage — and the small one is
+/// the card face's, which has a column's width to fit in.
+class _ChecklistBar extends StatelessWidget {
+  const _ChecklistBar({required this.checklist, this.large = false});
+
+  final List<TodoCheckItem> checklist;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final progress = checklistProgress(checklist);
+    final complete = progress.total > 0 && progress.done == progress.total;
+    final tint = complete
+        ? theme.accentText
+        : theme.popupForeground.withValues(alpha: 0.6);
+    final thickness = large ? 6.0 : 4.0;
+    final bar = SizedBox(
+      height: thickness,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(thickness / 2),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            if (due != null)
-              _DueChip(item: item, due: due, today: widget.today),
-            if (recurrence != null)
-              _Fact(
-                icon: ShellGlyph.repeat,
-                label: recurrence.describe(),
-              ),
-            if (item.external case final e?)
-              _Fact(
-                icon: ShellGlyph.calendar,
-                label: e.calendar ?? 'Calendar',
-                iconColor: calendarCardColor(item, theme),
-              ),
-            if (item.external?.link case final join? when item.column.isOpen)
-              _JoinChip(onTap: () => widget.onOpenLink(join)),
-            _Fact(
-              icon: ShellGlyph.clock,
-              label: formatMoment(item.movedAt),
+            ColoredBox(color: theme.divider),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress.fraction,
+              child: ColoredBox(color: theme.accent),
             ),
           ],
         ),
+      ),
+    );
+    if (!large) {
+      return Row(
+        children: [
+          ShellIcon(
+            ShellGlyph.listCheck,
+            size: ShellFontSizes.caption - 1,
+            color: tint,
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: bar),
+          const SizedBox(width: 6),
+          Text(
+            '${progress.done}/${progress.total}',
+            style: TextStyle(fontSize: ShellFontSizes.caption, color: tint),
+          ),
+        ],
+      );
+    }
+    final style = TextStyle(fontSize: ShellFontSizes.secondary, color: tint);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                complete
+                    ? 'All ${progress.total} done'
+                    : '${progress.done} of ${progress.total} done',
+                style: style,
+              ),
+            ),
+            Text(
+              '${(progress.fraction * 100).round()}%',
+              style: style.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        bar,
       ],
+    );
+  }
+}
+
+/// A checklist line's box: ticked or not, and a click flips it. Null [onTap]
+/// draws it without taking a click, for a board that cannot be written to.
+class _CheckBox extends StatelessWidget {
+  const _CheckBox({required this.done, required this.onTap});
+
+  final bool done;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return HoverRegion(
+      enabled: onTap != null,
+      onTap: onTap,
+      builder: (context, hovered) => SizedBox.square(
+        dimension: ShellSizes.minTapTarget,
+        child: Center(
+          child: ShellIcon(
+            done ? ShellGlyph.squareCheck : ShellGlyph.square,
+            size: ShellFontSizes.body + 1,
+            color: done
+                ? theme.accent
+                : theme.popupForeground.withValues(alpha: hovered ? 0.9 : 0.55),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1662,6 +1923,289 @@ String describeDueDate(DateTime due, DateTime today) {
   return '${due.day} ${_kMonths[due.month - 1]} ${due.year}';
 }
 
+/// Asks before [item] is deleted, from its details or its editor.
+Future<bool> _confirmDelete(BuildContext context, TodoItem item) {
+  final title = item.title.trim();
+  return showSettingsConfirm(
+    context,
+    title: 'Delete this item?',
+    message:
+        '${title.isEmpty ? 'This item' : '“$title”'} and its history will be '
+        'gone for good. Moving it to Abandoned keeps both.',
+    warning: item.recurrence == null
+        ? null
+        : 'It is the item that repeats, so no more copies of it will be made.',
+    confirmLabel: 'Delete',
+  );
+}
+
+/// A card opened by a click: everything on it in full — the title, the facts,
+/// the description and the checklist, whose lines are ticked off here — and
+/// the way to edit or delete it.
+///
+/// Over a scrim that closes it on a click, unlike the editor's: there is no
+/// draft here to lose, since a tick is written as it is made. It follows the
+/// store, so a tick, a sync or an edit elsewhere is on it at once, and it goes
+/// when the card does.
+class _DetailsLayer extends StatelessWidget {
+  const _DetailsLayer({
+    super.key,
+    required this.store,
+    required this.id,
+    required this.onEdit,
+    required this.onDone,
+    required this.onOpenLink,
+  });
+
+  final TodoStore store;
+  final String id;
+  final VoidCallback onEdit;
+  final VoidCallback onDone;
+  final ValueChanged<String> onOpenLink;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: store,
+    builder: (context, _) {
+      final item = store.item(id);
+      if (item == null) return const SizedBox.shrink();
+      final theme = ThemeScope.of(context);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onDone,
+        onSecondaryTapDown: (_) => onDone(),
+        child: ColoredBox(
+          color: theme.scrim,
+          child: Center(
+            child: LayoutBuilder(
+              builder: (context, constraints) => ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: kTodoEditorWidth.clamp(
+                    0,
+                    constraints.maxWidth - 32,
+                  ),
+                  maxHeight: (constraints.maxHeight - 32).clamp(
+                    0,
+                    double.infinity,
+                  ),
+                ),
+                // Absorbs clicks on the card's own chrome, which would
+                // otherwise reach the scrim and close it.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  onSecondaryTapDown: (_) {},
+                  child: _TodoDetails(
+                    store: store,
+                    item: item,
+                    onEdit: onEdit,
+                    onDone: onDone,
+                    onOpenLink: onOpenLink,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _TodoDetails extends StatelessWidget {
+  const _TodoDetails({
+    required this.store,
+    required this.item,
+    required this.onEdit,
+    required this.onDone,
+    required this.onOpenLink,
+  });
+
+  final TodoStore store;
+  final TodoItem item;
+  final VoidCallback onEdit;
+  final VoidCallback onDone;
+  final ValueChanged<String> onOpenLink;
+
+  Future<void> _delete(BuildContext context) async {
+    if (!await _confirmDelete(context, item) || !context.mounted) return;
+    store.delete(item.id);
+    onDone();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final editable = store.editable;
+    final checklist = parseTodoBody(item.body).checklist;
+    return Container(
+      decoration: BoxDecoration(
+        color: opaquePopupFill(theme),
+        borderRadius: BorderRadius.circular(ShellRadii.card),
+        border: Border.all(color: theme.accent),
+        boxShadow: [BoxShadow(color: theme.popupShadowColor, blurRadius: 24)],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _ColumnBadge(column: item.column),
+            ),
+            const SizedBox(height: 10),
+            _CardFace(
+              item: item,
+              today: store.now,
+              onOpenLink: onOpenLink,
+              expanded: true,
+            ),
+            if (checklist.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const _Label('Checklist'),
+              _ChecklistBar(checklist: checklist, large: true),
+              const SizedBox(height: 8),
+              for (var i = 0; i < checklist.length; i++)
+                _CheckLine(
+                  line: checklist[i],
+                  onTap: editable
+                      ? () => store.setChecked(
+                          item.id,
+                          i,
+                          done: !checklist[i].done,
+                        )
+                      : null,
+                ),
+            ],
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                if (editable)
+                  SizedBox(
+                    width: 90,
+                    child: SettingsActionButton(
+                      label: 'Delete',
+                      onTap: () => _delete(context),
+                    ),
+                  ),
+                const Spacer(),
+                SizedBox(
+                  width: 90,
+                  child: SettingsActionButton(label: 'Close', onTap: onDone),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 90,
+                  child: SettingsActionButton(
+                    label: 'Edit',
+                    primary: true,
+                    enabled: editable,
+                    onTap: onEdit,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The column a card is in, as a pill over its details.
+class _ColumnBadge extends StatelessWidget {
+  const _ColumnBadge({required this.column});
+
+  final TodoColumn column;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(ShellRadii.control),
+      ),
+      child: Text(
+        column.label,
+        style: TextStyle(
+          fontSize: ShellFontSizes.caption,
+          fontWeight: FontWeight.w600,
+          color: theme.accentText,
+        ),
+      ),
+    );
+  }
+}
+
+/// One line of a checklist in a card's details: the box and the text, struck
+/// through once it is done. The whole row is the click target, not just the
+/// box.
+class _CheckLine extends StatelessWidget {
+  const _CheckLine({required this.line, required this.onTap});
+
+  final TodoCheckItem line;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final text = Text(
+      line.text,
+      style: TextStyle(
+        fontSize: ShellFontSizes.body,
+        color: theme.popupForeground.withValues(alpha: line.done ? 0.5 : 0.9),
+        decoration: line.done ? TextDecoration.lineThrough : null,
+        decorationColor: theme.popupForeground.withValues(alpha: 0.5),
+      ),
+    );
+    // Its own layer, for a card's reason: the hover tint repaints the row.
+    return RepaintBoundary(
+      child: HoverRegion(
+        enabled: onTap != null,
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          constraints: const BoxConstraints(
+            minHeight: ShellSizes.minTapTarget + 4,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: hovered && onTap != null
+                ? theme.surfaceHover
+                : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          child: Row(
+            children: [
+              // Drawn here rather than as a [_CheckBox], whose own click would
+              // be a second target inside this one.
+              SizedBox.square(
+                dimension: ShellSizes.minTapTarget,
+                child: Center(
+                  child: ShellIcon(
+                    line.done ? ShellGlyph.squareCheck : ShellGlyph.square,
+                    size: ShellFontSizes.body + 1,
+                    color: line.done
+                        ? theme.accent
+                        : theme.popupForeground.withValues(
+                            alpha: hovered && onTap != null ? 0.9 : 0.55,
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: text),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The editor, over a scrim that covers the board.
 class _EditorLayer extends StatelessWidget {
   const _EditorLayer({
@@ -1719,8 +2263,23 @@ class _EditorLayer extends StatelessWidget {
   }
 }
 
-/// The form behind a card: title, body, column, due date and repetition, and
-/// the card's history of moves. Nothing is written until Save.
+/// One line of the checklist as the editor holds it until Save.
+class _DraftLine {
+  _DraftLine(String text, {this.done = false})
+    : text = TextEditingController(text: text);
+
+  final TextEditingController text;
+  bool done;
+
+  /// The row's key for the life of the draft. A [SettingsTextField] seeds
+  /// itself once, so a row keyed by its index would keep the old text when a
+  /// line above it is removed or a line is dragged past it.
+  final Key key = UniqueKey();
+}
+
+/// The form behind a card: title, body, checklist, column, due date and
+/// repetition, and the card's history of moves. Nothing is written until
+/// Save.
 class _TodoEditor extends StatefulWidget {
   const _TodoEditor({
     required this.store,
@@ -1742,8 +2301,11 @@ class _TodoEditorState extends State<_TodoEditor> {
   late final TextEditingController _title = TextEditingController(
     text: widget.existing?.title ?? '',
   );
+  /// The body as the card had it, split: the description goes in the field,
+  /// the checklist in the list under it, and Save puts them back together.
+  late final TodoBody _parsed = parseTodoBody(widget.existing?.body ?? '');
   late final TextEditingController _body = TextEditingController(
-    text: widget.existing?.body ?? '',
+    text: _parsed.description,
   );
   late final TextEditingController _due = TextEditingController(
     text: switch (widget.existing?.due) {
@@ -1769,12 +2331,23 @@ class _TodoEditorState extends State<_TodoEditor> {
   late RecurrenceUnit _unit =
       widget.existing?.recurrence?.unit ?? RecurrenceUnit.weeks;
 
+  late final List<_DraftLine> _lines = [
+    for (final line in _parsed.checklist)
+      _DraftLine(line.text, done: line.done),
+  ];
+
   @override
   void initState() {
     super.initState();
     // Every field the rest of the form reads back: the quick-pick chips light
-    // off the due date, the Save button and the next-copy line off all three.
-    for (final controller in [_due, _every, _start]) {
+    // off the due date, the Save button and the next-copy line off all three,
+    // and the checklist's bar off its lines.
+    for (final controller in [
+      _due,
+      _every,
+      _start,
+      for (final line in _lines) line.text,
+    ]) {
       controller.addListener(_onDraftChanged);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1788,11 +2361,61 @@ class _TodoEditorState extends State<_TodoEditor> {
 
   @override
   void dispose() {
-    for (final c in [_title, _body, _due, _every, _start]) {
+    for (final c in [
+      _title,
+      _body,
+      _due,
+      _every,
+      _start,
+      for (final line in _lines) line.text,
+    ]) {
       c.dispose();
     }
     _titleFocus.dispose();
     super.dispose();
+  }
+
+  void _addLine(String text) {
+    final line = _DraftLine(text)..text.addListener(_onDraftChanged);
+    setState(() => _lines.add(line));
+  }
+
+  void _removeLine(int index) {
+    final line = _lines[index];
+    line.text.removeListener(_onDraftChanged);
+    setState(() => _lines.removeAt(index));
+    // After the frame that takes its field away, which still holds it until
+    // then.
+    WidgetsBinding.instance.addPostFrameCallback((_) => line.text.dispose());
+  }
+
+  void _reorderLines(int from, int to) {
+    final next = reorderedList(_lines, from, to);
+    setState(() => _lines.setAll(0, next));
+  }
+
+  /// The checklist as Save would write it: blank lines dropped, text trimmed.
+  List<TodoCheckItem> _draftChecklist() => [
+    for (final line in _lines)
+      if (line.text.text.trim() case final text when text.isNotEmpty)
+        TodoCheckItem(text: text, done: line.done),
+  ];
+
+  /// The body Save writes: the description with the checklist after it.
+  ///
+  /// Neither touched, it is the body exactly as it was, so steps another
+  /// client put among the text stay where they were put rather than being
+  /// gathered at the end by an edit to the due date.
+  String _draftBody() {
+    final description = _body.text.trimRight();
+    final checklist = _draftChecklist();
+    final existing = widget.existing;
+    if (existing != null &&
+        description == _parsed.description &&
+        listEquals(checklist, _parsed.checklist)) {
+      return existing.body;
+    }
+    return composeTodoBody(description, checklist);
   }
 
   /// The draft as the store would take it, or why it cannot be taken.
@@ -1857,7 +2480,7 @@ class _TodoEditorState extends State<_TodoEditor> {
       widget.store.add(
         _column,
         title: _title.text.trim(),
-        body: _body.text.trimRight(),
+        body: _draftBody(),
         due: draft.due,
         recurrence: draft.recurrence,
       );
@@ -1865,7 +2488,7 @@ class _TodoEditorState extends State<_TodoEditor> {
       widget.store.update(
         existing.id,
         title: _title.text.trim(),
-        body: _body.text.trimRight(),
+        body: _draftBody(),
         column: _column,
         due: draft.due,
         recurrence: draft.recurrence,
@@ -1877,19 +2500,7 @@ class _TodoEditorState extends State<_TodoEditor> {
   Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
-    final title = existing.title.trim();
-    final confirmed = await showSettingsConfirm(
-      context,
-      title: 'Delete this item?',
-      message:
-          '${title.isEmpty ? 'This item' : '“$title”'} and its history will be '
-          'gone for good. Moving it to Abandoned keeps both.',
-      warning: existing.recurrence == null
-          ? null
-          : 'It is the item that repeats, so no more copies of it will be '
-                'made.',
-      confirmLabel: 'Delete',
-    );
+    final confirmed = await _confirmDelete(context, existing);
     if (!confirmed || !mounted) return;
     widget.store.delete(existing.id);
     widget.onDone();
@@ -1944,6 +2555,46 @@ class _TodoEditorState extends State<_TodoEditor> {
               maxLines: 8,
               minLines: 4,
               onChanged: (_) {},
+            ),
+            const SizedBox(height: 12),
+            const _Label('Checklist'),
+            if (_draftChecklist() case final checklist
+                when checklist.isNotEmpty) ...[
+              _ChecklistBar(checklist: checklist, large: true),
+              const SizedBox(height: 8),
+            ],
+            SettingsList(
+              itemCount: _lines.length,
+              itemKey: (i) => _lines[i].key,
+              // Each row is a text field, so a drag inside one selects text;
+              // the grip moves the line.
+              handleOnly: true,
+              numbered: false,
+              onReorder: _reorderLines,
+              onRemove: _removeLine,
+              removeTooltip: 'Remove this step',
+              itemBuilder: (context, i) => Row(
+                children: [
+                  _CheckBox(
+                    done: _lines[i].done,
+                    onTap: () =>
+                        setState(() => _lines[i].done = !_lines[i].done),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SettingsTextField(
+                      controller: _lines[i].text,
+                      hint: 'A step',
+                      onChanged: (_) {},
+                    ),
+                  ),
+                ],
+              ),
+              adder: SettingsListAddField(
+                label: 'Add a step',
+                hint: 'Something to tick off on the way',
+                onSubmitted: _addLine,
+              ),
             ),
             const SizedBox(height: 12),
             const _Label('Column'),

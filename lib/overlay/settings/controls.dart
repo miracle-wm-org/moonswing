@@ -1042,15 +1042,21 @@ const Duration kSettingsTooltipDelay = Duration(milliseconds: 500);
 /// the pointer go down, so the child's own hover and tap are untouched. A press
 /// hides it and it stays hidden until the pointer leaves, because a label over
 /// what the click just opened is in the way. [message] null wraps nothing.
+///
+/// [delay] is for a child that is itself the thing being read — a todo card,
+/// whose tip is its own title in full — where a tip on every pass of the
+/// pointer would be in the way of the board.
 class SettingsTooltip extends StatefulWidget {
   const SettingsTooltip({
     super.key,
     required this.message,
     required this.child,
+    this.delay = kSettingsTooltipDelay,
   });
 
   final String? message;
   final Widget child;
+  final Duration delay;
 
   @override
   State<SettingsTooltip> createState() => _SettingsTooltipState();
@@ -1078,7 +1084,7 @@ class _SettingsTooltipState extends State<SettingsTooltip> {
 
   void _arm() {
     _delay?.cancel();
-    _delay = Timer(kSettingsTooltipDelay, _show);
+    _delay = Timer(widget.delay, _show);
   }
 
   void _show() {

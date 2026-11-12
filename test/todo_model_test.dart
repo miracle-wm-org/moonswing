@@ -144,6 +144,31 @@ void main() {
     test('nothing owed is no change at all', () {
       expect(spawnRecurring([_item('a')], now, newId, now: now), isNull);
     });
+
+    test('the copy\'s checklist starts with every step unticked', () {
+      final rule = TodoRecurrence(
+        every: 1,
+        unit: RecurrenceUnit.days,
+        start: DateTime(2026, 9, 20),
+        since: DateTime(2026, 9, 23),
+      );
+      const body = 'Chores\n\n- [x] Water\n- [ ] Feed';
+      final item = TodoItem(
+        id: 'r',
+        title: 'Plants',
+        body: body,
+        column: TodoColumn.finished,
+        created: DateTime(2026, 9, 1, 9),
+        recurrence: rule,
+      );
+      final next = spawnRecurring([item], now, newId, now: now)!;
+      expect(
+        next.firstWhere((i) => i.id != 'r').body,
+        'Chores\n\n- [ ] Water\n- [ ] Feed',
+      );
+      // The one it was copied from keeps what was ticked on it.
+      expect(next.firstWhere((i) => i.id == 'r').body, body);
+    });
   });
 
   group('dueReminder', () {
