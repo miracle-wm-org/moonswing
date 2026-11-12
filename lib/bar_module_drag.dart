@@ -20,6 +20,13 @@
 // the section is reordered in local state while it runs. Children are keyed by
 // the id they were given, so a module keeps its element, and whatever popup or
 // timer it owns, as it moves.
+//
+// **The others slide aside, and the dropped one settles, only around a drag**
+// ([_BarSlide]). A slide is animated between slots the section *computed*, from
+// the extents it measured as the drag began — never from a module's laid-out
+// position, which moves whenever a neighbour's text does, so an idle bar whose
+// clock ticked wider would start a ticker every minute. Outside a drag and the
+// frame its drop lands in, a module has no slot and nothing animates.
 
 import 'dart:math' as math;
 
@@ -29,6 +36,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/bar_module_row.dart';
 import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// How far a press must travel before it is a drag of the module under it:
 /// past both a tap's slop, so the tap is already cancelled, and a pan's, so a
@@ -136,6 +144,11 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
   /// leading edge now is, both along the bar in the section's own space.
   double _grab = 0;
   double _start = 0;
+
+  /// Each module's extent by id, kept from a drag for the frame its drop lands
+  /// in, so the dropped module can settle into its slot from where it was let
+  /// go rather than jump; null otherwise.
+  Map<String, double>? _settling;
 
   bool get _horizontal => widget.axis == Axis.horizontal;
 
@@ -248,48 +261,181 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
         _dragging &&
         order != null &&
         !listEquals(order, List<int>.generate(order.length, (i) => i));
+    if (_dragging) _settle();
     setState(_reset);
     if (moved) widget.onReorder?.call(order);
   }
 
+  /// Keeps the drag's extents for the frame the drop lands in: the config's
+  /// new order arrives in it (the store notifies synchronously), or with no
+  /// store the old order comes back, and either way each module slides there.
+  void _settle() {
+    _settling = {
+      for (var i = 0; i < widget.ids.length; i++) widget.ids[i]: _extents[i],
+    };
+    WidgetsBinding.instance.addPostFrameCallback((_) => _settling = null);
+  }
+
   void _onCancel(PointerCancelEvent event) {
     if (event.pointer != _pointer) return;
+    if (_dragging) _settle();
     setState(_reset);
   }
 
-  double _shiftOf(int index) {
-    final order = _order;
-    if (!_dragging || order == null || index != _pressed) return 0;
-    final position = order.indexOf(index);
-    final extents = [for (final i in order) _extents[i]];
-    return _start - barSlotStart(extents, position, widget.gap);
+  /// Where each module in [order] starts along the bar, by position — or null
+  /// outside a drag and its drop, when no slide is wanted.
+  List<double>? _slots(List<int> order) {
+    final List<double> extents;
+    if (_dragging) {
+      extents = [for (final i in order) _extents[i]];
+    } else if (_settling case final byId?) {
+      final known = [for (final i in order) byId[widget.ids[i]]];
+      // A module that was not in the drag — the drop landed beside an edit
+      // from the settings page — leaves nothing to slide between.
+      if (known.contains(null)) return null;
+      extents = [for (final extent in known) extent!];
+    } else {
+      return null;
+    }
+    return [
+      for (var p = 0; p < order.length; p++)
+        barSlotStart(extents, p, widget.gap),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final order =
         _order ?? List<int>.generate(widget.children.length, (i) => i);
+    final slots = _slots(order);
+    // Where each module sat before the drag, by child index: what one passed
+    // by the drag's very first move slides from, since it had no slot yet.
+    final rest = slots == null
+        ? null
+        : _slots(List<int>.generate(widget.children.length, (i) => i));
     return BarModuleRow(
       axis: widget.axis,
       gap: widget.gap,
       children: [
-        for (final i in order)
-          Listener(
-            key: ValueKey(widget.ids[i]),
-            onPointerDown: (event) => _onDown(i, event),
-            onPointerMove: _onMove,
-            onPointerUp: _onUp,
-            onPointerCancel: _onCancel,
-            // Always a Transform, at zero when still, so the dragged module
-            // keeps its element; a translation pushes no layer.
-            child: Transform.translate(
-              offset: _horizontal
-                  ? Offset(_shiftOf(i), 0)
-                  : Offset(0, _shiftOf(i)),
-              child: widget.children[i],
+        for (var p = 0; p < order.length; p++)
+          _BarSlide(
+            key: ValueKey(widget.ids[order[p]]),
+            axis: widget.axis,
+            slot: slots?[p],
+            restSlot: rest?[order[p]],
+            // The dragged module is where the pointer has it: its shift is
+            // from its slot to there, and it does not slide.
+            held: _dragging && order[p] == _pressed,
+            shift: _dragging && order[p] == _pressed && slots != null
+                ? _start - slots[p]
+                : 0,
+            child: Listener(
+              onPointerDown: (event) => _onDown(order[p], event),
+              onPointerMove: _onMove,
+              onPointerUp: _onUp,
+              onPointerCancel: _onCancel,
+              child: widget.children[order[p]],
             ),
           ),
       ],
+    );
+  }
+}
+
+/// One module of a [ReorderableBarSection], drawn [shift] past its slot and
+/// sliding when its [slot] moves.
+///
+/// When [slot] changes between two builds that both know it, the module is
+/// drawn where it was and eases to where it now is — from wherever it was
+/// drawn, so a slide interrupted by another, or a drop from under the pointer,
+/// starts from what is on screen. A [held] module follows its [shift] exactly.
+/// Always a [Transform], at zero when still, so the module keeps its element;
+/// a translation pushes no layer. The controller is made at the first slide and
+/// ticks only while one runs.
+class _BarSlide extends StatefulWidget {
+  const _BarSlide({
+    super.key,
+    required this.axis,
+    required this.slot,
+    required this.restSlot,
+    required this.held,
+    required this.shift,
+    required this.child,
+  });
+
+  final Axis axis;
+  final double? slot;
+
+  /// Where the module sits in its section's own order, for the first build
+  /// that knows [slot]: the module was drawn there before it.
+  final double? restSlot;
+  final bool held;
+  final double shift;
+  final Widget child;
+
+  @override
+  State<_BarSlide> createState() => _BarSlideState();
+}
+
+class _BarSlideState extends State<_BarSlide>
+    with SingleTickerProviderStateMixin {
+  static const Duration _duration = ShellDurations.slow;
+  static const Curve _curve = Curves.easeOutCubic;
+
+  AnimationController? _controller;
+
+  /// How far from its target the module was drawn when the running slide
+  /// began; it is drawn `_from × (1 − curve(t))` away.
+  double _from = 0;
+
+  double get _residual {
+    final controller = _controller;
+    if (controller == null || !controller.isAnimating) return 0;
+    return _from * (1 - _curve.transform(controller.value));
+  }
+
+  @override
+  void didUpdateWidget(_BarSlide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldSlot = oldWidget.slot;
+    final slot = widget.slot;
+    if (widget.held) {
+      _controller?.stop();
+      return;
+    }
+    final from = oldSlot ?? widget.restSlot;
+    if (from == null || slot == null) return;
+    final was = from + oldWidget.shift + _residual;
+    final now = slot + widget.shift;
+    if ((was - now).abs() < 0.5) return;
+    _from = was - now;
+    (_controller ??= AnimationController(
+      vsync: this,
+      duration: _duration,
+    )).forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller ?? kAlwaysCompleteAnimation,
+      // The module itself is handed through unrebuilt; a tick moves it.
+      child: widget.child,
+      builder: (context, child) {
+        final along = widget.shift + _residual;
+        return Transform.translate(
+          offset: widget.axis == Axis.horizontal
+              ? Offset(along, 0)
+              : Offset(0, along),
+          child: child,
+        );
+      },
     );
   }
 }

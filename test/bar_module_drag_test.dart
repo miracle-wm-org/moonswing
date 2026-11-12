@@ -7,7 +7,7 @@ import 'package:moonswing/bar_module_drag.dart';
 /// A module that counts its own builds of state, so a test can tell a module
 /// that moved from one that was rebuilt from scratch.
 class _Counter extends StatefulWidget {
-  const _Counter({required this.label, this.onTapDown});
+  const _Counter({super.key, required this.label, this.onTapDown});
 
   final String label;
   final VoidCallback? onTapDown;
@@ -176,6 +176,114 @@ void main() {
       expect(reorders, [
         [1, 2, 0],
       ]);
+    });
+  });
+
+  group('a drag animates', () {
+    /// A section whose parent applies each drop, as the config does.
+    Future<void> pumpApplying(WidgetTester tester) async {
+      var labels = ['a', 'b', 'c'];
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => Align(
+            alignment: Alignment.topLeft,
+            child: ReorderableBarSection(
+              axis: Axis.horizontal,
+              gap: 8,
+              ids: labels,
+              onReorder: (order) =>
+                  setState(() => labels = [for (final i in order) labels[i]]),
+              children: [
+                for (final label in labels)
+                  _Counter(key: ValueKey(label), label: label),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    double x(WidgetTester tester, String label) =>
+        tester.getTopLeft(find.text(label)).dx;
+
+    testWidgets('the module passed slides aside rather than jumping', (
+      tester,
+    ) async {
+      await pumpApplying(tester);
+      final gesture = await tester.startGesture(
+        const Offset(20, 10),
+        kind: PointerDeviceKind.mouse,
+      );
+      // Past b's slot: b now belongs at the start, and is still drawn at its
+      // old place on the frame it was passed.
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(x(tester, 'b'), 48);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(x(tester, 'b'), inExclusiveRange(0, 48));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(x(tester, 'b'), 0);
+      // The held module never lags the pointer.
+      expect(x(tester, 'a'), 30);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the dropped module settles into its slot, then rests', (
+      tester,
+    ) async {
+      await pumpApplying(tester);
+      final gesture = await tester.startGesture(
+        const Offset(20, 10),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      // The drop lands: a is drawn where it was let go, its slot now 48.
+      await tester.pump();
+      expect(x(tester, 'a'), 30);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(x(tester, 'a'), inExclusiveRange(30, 48));
+      await tester.pumpAndSettle();
+      expect(x(tester, 'a'), 48);
+      expect(x(tester, 'b'), 0);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a module resizing at rest moves its neighbours at once', (
+      tester,
+    ) async {
+      var wide = false;
+      late StateSetter set;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            set = setState;
+            return Align(
+              alignment: Alignment.topLeft,
+              child: ReorderableBarSection(
+                axis: Axis.horizontal,
+                ids: const ['a', 'b'],
+                onReorder: (_) {},
+                children: [
+                  SizedBox(width: wide ? 80 : 40, height: 20),
+                  const SizedBox(
+                    width: 40,
+                    height: 20,
+                    child: Text('b', textDirection: TextDirection.ltr),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+      set(() => wide = true);
+      await tester.pump();
+      expect(x(tester, 'b'), 88);
+      expect(tester.binding.transientCallbackCount, 0);
     });
   });
 }

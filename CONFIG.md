@@ -119,7 +119,7 @@ At the bottom of every module's menu, **Add module…** lists the modules that p
 
 **Right-click a panel's blank space** for **Add module to left…** (or *center*, or *right* — whichever third of the bar you clicked; on a side bar, *top*, *middle* or *bottom*), which adds the module you pick to the end of that section, then **Panel settings…**, which opens Settings › Shell › Panels & Layout on that panel's tab, and **Settings…**. Either opens Settings on the screen you clicked.
 
-**Drag a module along its section to move it.** Press on it and drag along the bar: it follows the pointer, the modules beside it make room, and letting go writes the new order. A module stays in its own section — to move one to another section, remove it and add it there. A short wobble is still a click, and a drag never also clicks the module. The dock is the exception: dragging one of its icons reorders the icons, as it always has.
+**Drag a module along its section to move it.** Press on it and drag along the bar: it follows the pointer, the modules it passes slide aside to make room, and letting go settles it into its place and writes the new order. A module stays in its own section — to move one to another section, remove it and add it there. A short wobble is still a click, and a drag never also clicks the module. The dock is the exception: dragging one of its icons reorders the icons, as it always has.
 
 Which options a module's menu offers is the shell's choice, not a config key: the ones that are a switch or a short list, and that you might want to flip without opening Settings.
 
