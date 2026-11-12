@@ -503,6 +503,53 @@ class TodoRemote {
   int get hashCode => Object.hash(href, etag, raw);
 }
 
+/// One line of a card's checklist: something to tick off on the way to the
+/// card being done.
+///
+/// The list is the card's own and stays on this machine — a CalDAV task has no
+/// place for one — so a sync never touches it (see `todo_caldav_map.dart`).
+class TodoCheckItem {
+  const TodoCheckItem({required this.text, this.done = false});
+
+  final String text;
+  final bool done;
+
+  TodoCheckItem copyWith({String? text, bool? done}) =>
+      TodoCheckItem(text: text ?? this.text, done: done ?? this.done);
+
+  Map<String, Object?> toJson() => {'text': text, if (done) 'done': true};
+
+  /// Null for anything that is not a line with text: a bad row costs that row
+  /// of the checklist, never the card.
+  static TodoCheckItem? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final text = json['text'];
+    if (text is! String || text.trim().isEmpty) return null;
+    return TodoCheckItem(text: text, done: json['done'] == true);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoCheckItem && other.text == text && other.done == done;
+
+  @override
+  int get hashCode => Object.hash(text, done);
+
+  @override
+  String toString() => 'TodoCheckItem(${done ? 'x' : ' '} $text)';
+}
+
+/// How far through [checklist] a card is: how many lines are ticked of how
+/// many there are, and that as a fraction — 0 for an empty list, which has
+/// nothing to be through.
+({int done, int total, double fraction}) checklistProgress(
+  List<TodoCheckItem> checklist,
+) {
+  final total = checklist.length;
+  final done = checklist.where((c) => c.done).length;
+  return (done: done, total: total, fraction: total == 0 ? 0 : done / total);
+}
+
 /// One card on the board.
 class TodoItem {
   const TodoItem({
@@ -516,6 +563,7 @@ class TodoItem {
     this.history = const [],
     this.external,
     this.remote,
+    this.checklist = const [],
   });
 
   /// Stable for the life of the item, and unique within the file.
@@ -544,6 +592,10 @@ class TodoItem {
   /// or came from there. See [TodoRemote].
   final TodoRemote? remote;
 
+  /// The steps the card is broken into, in the user's order. Empty for a card
+  /// with none, which is most of them.
+  final List<TodoCheckItem> checklist;
+
   /// When it arrived in the column it is in now.
   DateTime get movedAt => history.isEmpty ? created : history.last.at;
 
@@ -566,6 +618,7 @@ class TodoItem {
     List<TodoMove>? history,
     Object? external = _keep,
     Object? remote = _keep,
+    List<TodoCheckItem>? checklist,
   }) => TodoItem(
     id: id,
     title: title ?? this.title,
@@ -581,6 +634,7 @@ class TodoItem {
         ? this.external
         : external as TodoExternal?,
     remote: identical(remote, _keep) ? this.remote : remote as TodoRemote?,
+    checklist: checklist ?? this.checklist,
   );
 
   Map<String, Object?> toJson() => {
@@ -594,6 +648,8 @@ class TodoItem {
     'history': [for (final move in history) move.toJson()],
     if (external != null) 'external': external!.toJson(),
     if (remote != null) 'remote': remote!.toJson(),
+    if (checklist.isNotEmpty)
+      'checklist': [for (final line in checklist) line.toJson()],
   };
 
   /// Null for a row that cannot be an item at all: no id, or a column the board
@@ -625,6 +681,10 @@ class TodoItem {
       history: history,
       external: TodoExternal.fromJson(json['external']),
       remote: TodoRemote.fromJson(json['remote']),
+      checklist: [
+        if (json['checklist'] case final List<Object?> lines)
+          for (final line in lines) ?TodoCheckItem.fromJson(line),
+      ],
     );
   }
 
@@ -640,7 +700,8 @@ class TodoItem {
       other.recurrence == recurrence &&
       _listEquals(other.history, history) &&
       other.external == external &&
-      other.remote == remote;
+      other.remote == remote &&
+      _listEquals(other.checklist, checklist);
 
   @override
   int get hashCode => Object.hash(
@@ -654,6 +715,7 @@ class TodoItem {
     Object.hashAll(history),
     external,
     remote,
+    Object.hashAll(checklist),
   );
 }
 
@@ -965,7 +1027,9 @@ List<TodoItem> decodeTodoFile(String source) {
 /// [TodoColumn.todo], due on the day it was scheduled for, and *takes the rule
 /// with it*: the newest copy is the one that carries the recurrence, so editing
 /// or deleting it is how a repeating item is changed or stopped, and an old copy
-/// left in Finished cannot keep spawning. [newId] mints an id per copy.
+/// left in Finished cannot keep spawning. It takes the checklist too, every
+/// line unticked, since each copy is the job to do again. [newId] mints an id
+/// per copy.
 List<TodoItem>? spawnRecurring(
   List<TodoItem> items,
   DateTime today,
@@ -994,6 +1058,10 @@ List<TodoItem>? spawnRecurring(
         due: owed,
         recurrence: rule.copyWith(since: owed),
         history: [TodoMove(from: null, to: TodoColumn.todo, at: now)],
+        // The same steps, none of them done yet: each copy is the job again.
+        checklist: [
+          for (final line in item.checklist) line.copyWith(done: false),
+        ],
       ),
     );
   }

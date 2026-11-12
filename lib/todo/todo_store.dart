@@ -602,6 +602,7 @@ class TodoStore extends ChangeNotifier {
     String body = '',
     DateTime? due,
     TodoRecurrence? recurrence,
+    List<TodoCheckItem> checklist = const [],
   }) {
     if (!editable) return null;
     final now = _now();
@@ -614,6 +615,7 @@ class TodoStore extends ChangeNotifier {
       due: due == null ? null : dateOnly(due),
       recurrence: recurrence,
       history: [TodoMove(from: null, to: column, at: now)],
+      checklist: List.unmodifiable(checklist),
     );
     final next = [..._items];
     final firstInColumn = next.indexWhere((i) => i.column == column);
@@ -631,6 +633,7 @@ class TodoStore extends ChangeNotifier {
     required TodoColumn column,
     required DateTime? due,
     required TodoRecurrence? recurrence,
+    List<TodoCheckItem>? checklist,
   }) {
     final current = item(id);
     if (!editable || current == null) return;
@@ -639,6 +642,7 @@ class TodoStore extends ChangeNotifier {
       body: body,
       due: due == null ? null : dateOnly(due),
       recurrence: recurrence,
+      checklist: checklist == null ? null : List.unmodifiable(checklist),
     );
     if (column == current.column) {
       _commit([for (final i in _items) i.id == id ? edited : i]);
@@ -647,6 +651,25 @@ class TodoStore extends ChangeNotifier {
     // A column change from the editor lands at the top of its new column, the
     // way a new item does.
     _moveItem(edited, column, beforeId: _firstIdIn(column));
+  }
+
+  /// Ticks (or unticks) line [index] of [id]'s checklist. Nothing else about
+  /// the card moves: finishing the last line is not finishing the card, which
+  /// is still the user's to drag to Finished.
+  void setChecked(String id, int index, {required bool done}) {
+    final current = item(id);
+    if (!editable || current == null) return;
+    final lines = current.checklist;
+    if (index < 0 || index >= lines.length || lines[index].done == done) {
+      return;
+    }
+    final edited = current.copyWith(
+      checklist: List.unmodifiable([
+        for (var i = 0; i < lines.length; i++)
+          i == index ? lines[i].copyWith(done: done) : lines[i],
+      ]),
+    );
+    _commit([for (final i in _items) i.id == id ? edited : i]);
   }
 
   /// Moves [id] into [column], just above [beforeId] — or to the bottom of the
