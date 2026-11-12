@@ -166,6 +166,10 @@ show_seconds = false
 hour_format = "24"
 timer_sound = "ding"
 timer_volume = 0.7
+
+[[modules.clock.quick_timers]]
+name = "Tea"
+duration = "3m"
 ```
 
 | Key                | Type   | Default  | Description                                                   |
@@ -179,6 +183,7 @@ timer_volume = 0.7
 | `hour_format`      | string | `"24"`   | `"24"` for `14:05`, `"12"` for `2:05 PM`                      |
 | `timer_sound`      | string | `"ding"` | What rings when a countdown reaches zero — see below.         |
 | `timer_volume`     | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.                      |
+| `quick_timers`     | array  | none     | Named countdowns started in one click — see [Quick timers](#quick-timers). |
 
 The parts that are on are shown in that order — weekday, date, year, week,
 time — so with all of them on the bar reads `Mon Nov 2 2026 W45 14:05:09`. Any
@@ -256,6 +261,37 @@ Several countdowns set to the same minute ring **once**, not once each — the
 alarm is longer than a chime and three of them over each other is a noise. Each
 one still posts its own notification, so nothing about *which* timers finished
 is lost.
+
+#### Quick timers
+
+The card the hourglass button opens has a **Name** field under the duration. A
+name labels the timer it starts — the floating card reads *Tea · 03:00* rather
+than *Timer · 03:00*, and the notification says *Tea (03:00) is up.* — and
+**Save as quick timer** keeps that name and length. Every quick timer is a chip
+at the top of the same card: click it and the countdown starts, named, with
+nothing to type; its **×** forgets it. Saving a name you already have changes
+that one's length instead of adding a second chip.
+
+They are kept in `config.toml`, one table each, so they outlive a restart —
+which running timers deliberately do not:
+
+```toml
+[[modules.clock.quick_timers]]
+name = "Tea"
+duration = "3m"
+
+[[modules.clock.quick_timers]]
+name = "Pasta"
+duration = "10:00"
+```
+
+| Key        | Type          | Description                                                        |
+| ---------- | ------------- | ------------------------------------------------------------------ |
+| `name`     | string        | What the chip, the floating card and the notification call it. Up to 40 characters, one line. |
+| `duration` | string or int | Anything the duration field takes — `3m`, `1:30`, `1h30m`, a bare `5` for minutes — or a whole number of seconds. Up to 99 hours. |
+
+A row without a name, or with a length that does not parse, is skipped; the
+others still show, and the skipped one is left in the file as you wrote it.
 
 ### Media Player
 

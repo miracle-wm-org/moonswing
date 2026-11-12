@@ -40,6 +40,7 @@ class ShellTimer {
     required this.accumulated,
     required this.startedAt,
     this.finished = false,
+    this.label,
   });
 
   /// Stable within a session, and never reused — the popup and the overview
@@ -59,6 +60,10 @@ class ShellTimer {
 
   /// Whether a countdown has reached zero. Never true for a stopwatch.
   final bool finished;
+
+  /// What the user called it — a quick timer's name, or one typed into the
+  /// composer — or null for an unnamed one. Fixed for the entry's life.
+  final String? label;
 
   bool get running => startedAt != null;
 
@@ -104,6 +109,7 @@ class ShellTimer {
           ? this.startedAt
           : startedAt as DateTime?,
       finished: finished ?? this.finished,
+      label: label,
     );
   }
 }
@@ -217,13 +223,15 @@ class TimersStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Starts a countdown of [duration], and returns its id.
+  /// Starts a countdown of [duration], and returns its id. A [label] that is
+  /// empty once trimmed is no label.
   ///
   /// Durations past [kMaxTimerDuration] are clamped rather than refused: the
   /// parser already rejects them at the field, so anything arriving here is a
   /// caller's arithmetic and clamping keeps the readout's layout honest.
-  int startTimer(Duration duration) {
+  int startTimer(Duration duration, {String? label}) {
     final total = duration > kMaxTimerDuration ? kMaxTimerDuration : duration;
+    final name = label?.trim();
     return _add(
       ShellTimer(
         id: _nextId++,
@@ -231,6 +239,7 @@ class TimersStore extends ChangeNotifier {
         total: total.isNegative ? Duration.zero : total,
         accumulated: Duration.zero,
         startedAt: _now(),
+        label: name == null || name.isEmpty ? null : name,
       ),
     );
   }
@@ -421,7 +430,11 @@ void postTimerFinishedNotification(ShellTimer entry) {
       id: store.allocateId(),
       appName: 'Moonswing',
       summary: 'Timer finished',
-      body: '${formatTimerDuration(entry.total)} is up.',
+      // A named timer says which: three running at once is the case a name
+      // is for, and "03:00 is up" does not say whether that was the tea.
+      body: entry.label == null
+          ? '${formatTimerDuration(entry.total)} is up.'
+          : '${entry.label} (${formatTimerDuration(entry.total)}) is up.',
       actions: const [],
       expireTimeout: 0,
       arrivedAt: DateTime.now(),
