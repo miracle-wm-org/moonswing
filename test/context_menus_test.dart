@@ -97,6 +97,29 @@ show_date = false
       ]);
     });
 
+    test('ends with the bar\'s own edits, each closing the menu first', () {
+      final events = <String>[];
+      final items = moduleMenuItems(
+        moduleKey: 'sound_control',
+        panelName: 'top',
+        close: () => events.add('close'),
+        openSettings: (_) {},
+        store: store,
+        onAddModule: () => events.add('add'),
+        onRemove: () => events.add('remove'),
+      );
+      expect(_labels(items), [
+        'Sound settings…',
+        'Panel settings…',
+        '—',
+        'Add module…',
+        'Remove from panel',
+      ]);
+      _entry(items, 'Add module…').onTap();
+      _entry(items, 'Remove from panel').onTap();
+      expect(events, ['close', 'add', 'close', 'remove']);
+    });
+
     test('a toggle reads the file, falls back to the default, and writes', () {
       final items = moduleMenuItems(
         moduleKey: 'clock',
@@ -264,6 +287,80 @@ show_date = false
       _entry(items, 'Settings…').onTap();
       expect(opened, [SettingsRoute.panel('bottom'), const SettingsRoute()]);
       expect(panelMenuTitle('bottom'), 'Bottom panel');
+    });
+
+    test('adds a module to the section that was right-clicked', () {
+      final events = <String>[];
+      final items = panelMenuItems(
+        panelName: 'top',
+        close: () => events.add('close'),
+        openSettings: (_) {},
+        slotLabel: 'Center',
+        onAddModule: () => events.add('add'),
+      );
+      expect(_labels(items), [
+        'Add module to center…',
+        '—',
+        'Panel settings…',
+        'Settings…',
+      ]);
+      _entry(items, 'Add module to center…').onTap();
+      expect(events, ['close', 'add']);
+    });
+
+    test('the module list picks one, or says there is none left', () {
+      final picked = <String>[];
+      final items = addModuleMenuItems(
+        keys: const ['battery', 'clock'],
+        close: () => picked.add('close'),
+        onPick: picked.add,
+      );
+      expect(_labels(items), ['Battery', 'Clock']);
+      _entry(items, 'Clock').onTap();
+      expect(picked, ['close', 'clock']);
+
+      final none = addModuleMenuItems(
+        keys: const [],
+        close: () {},
+        onPick: (_) => fail('nothing to pick'),
+      );
+      expect((none.single as DesktopMenuEntry).enabled, isFalse);
+    });
+
+    testWidgets('a long module list scrolls inside the card', (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: Align(
+              alignment: Alignment.topLeft,
+              // What a bar popup is offered.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 320,
+                  maxHeight: 300,
+                ),
+                child: DesktopMenuCard(
+                  header: 'Add module to left',
+                  scrollable: true,
+                  entries: [
+                    for (var i = 0; i < 40; i++)
+                      DesktopMenuEntry(label: 'Module $i', onTap: () {}),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final card = tester.getSize(find.byType(DesktopMenuCard));
+      expect(card.height, lessThanOrEqualTo(300));
+      expect(card.width, lessThan(320));
+      await tester.drag(find.text('Module 2'), const Offset(0, -3000));
+      await tester.pump();
+      expect(find.text('Module 39').hitTestable(), findsOneWidget);
     });
 
     test('a panel route lands on Panels & Layout, and names the panel', () {

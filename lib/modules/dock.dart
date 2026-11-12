@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/bar_module_drag.dart' show BarDragClaim;
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
@@ -750,6 +751,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         // and why the double click is counted by hand rather than by an
         // `onDoubleTap`, which the pan would win against.
         onPanStart: (d) {
+          // The press is the dock's to reorder its own icons, not the bar's
+          // to move the whole dock along its section (`bar_module_drag.dart`).
+          BarDragClaim.claim();
           setState(() => _pressed = true);
           widget.onDragStart(d.globalPosition);
         },

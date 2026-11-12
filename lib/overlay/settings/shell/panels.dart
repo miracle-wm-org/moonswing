@@ -402,17 +402,18 @@ String moduleTitle(String key) {
   return '${words[0].toUpperCase()}${words.substring(1)}';
 }
 
+/// The glyph a module is shown by wherever it is listed — the panel editor's
+/// rows, and the bar's own "Add module" menu.
+ShellGlyph moduleGlyph(String key) =>
+    moduleSettingsPageByKey(key)?.icon ??
+    _kModuleIcons[key] ??
+    // A key no module answers to — a typo in the file, or a module from a
+    // newer build — keeps a slot in the icon column like any other.
+    ShellGlyph.puzzle;
+
 Widget _moduleIcon(BuildContext context, String key) {
   final theme = ThemeScope.of(context);
-  return ShellIcon(
-    moduleSettingsPageByKey(key)?.icon ??
-        _kModuleIcons[key] ??
-        // A key no module answers to — a typo in the file, or a module from
-        // a newer build — keeps a slot in the icon column like any other.
-        ShellGlyph.puzzle,
-    size: 13,
-    color: theme.accentText,
-  );
+  return ShellIcon(moduleGlyph(key), size: 13, color: theme.accentText);
 }
 
 /// A single tab in the Panels & Layout tab strip: the shared [UnderlineTab]
