@@ -52,6 +52,30 @@ void main() {
   });
 
   group('GoogleAccountFile', () {
+    // A rewrite in place empties the file before filling it, and a read in
+    // that gap — the store's own, or a crash leaving it there — is every grant
+    // gone. The new contents arrive whole or not at all.
+    test('a read during a rewrite sees the old grants or the new', () async {
+      const old = [
+        GoogleAccountData(clientId: 'id', refreshToken: 'old', email: 'a@x'),
+      ];
+      const next = [
+        GoogleAccountData(clientId: 'id', refreshToken: 'new', email: 'a@x'),
+      ];
+      expect(await file.write(old), isTrue);
+      for (var round = 0; round < 50; round++) {
+        var done = false;
+        final writing = file
+            .write(round.isEven ? next : old)
+            .whenComplete(() => done = true);
+        while (!done) {
+          final read = await file.read();
+          expect(read, hasLength(1), reason: 'round $round read $read');
+        }
+        await writing;
+      }
+    });
+
     test('round-trips, and is readable by nobody else', () async {
       const accounts = [
         GoogleAccountData(
