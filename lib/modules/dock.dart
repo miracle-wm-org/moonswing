@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:moonswing/bar_module_drag.dart' show BarDragClaim;
+import 'package:moonswing/bar_module_drag.dart'
+    show BarDragClaim, kBarSlideCurve, kBarSlideDuration;
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
@@ -52,7 +53,17 @@ class _DockApp {
   final String appId;
   final AppEntry entry;
 
-  const _DockApp({required this.appId, required this.entry});
+  /// What the app's button is keyed by: carried from the previous [_DockApp]
+  /// for the same id when the list is reloaded, so a button keeps its element
+  /// across a config write — the drop's own, above all, whose new order the
+  /// dropped icon is still settling into (see [DockSlot]).
+  final Object identity;
+
+  const _DockApp({
+    required this.appId,
+    required this.entry,
+    required this.identity,
+  });
 }
 
 // Reorder geometry / bookkeeping (pure; unit-tested in test/dock_reorder_test.dart)
@@ -209,6 +220,11 @@ class DockState extends State<Dock> {
   /// space.
   double _pointerAlong = 0;
 
+  /// [_slotStep], kept from a drag for the frame its drop lands in, so the
+  /// dropped icon settles into its slot from where it was let go rather than
+  /// jumping there; null otherwise.
+  double? _settleStep;
+
   /// Whether the bar runs down a side of the screen, so the strip — and every
   /// coordinate above — runs down it too. Read in [build]; a bar's anchor is
   /// fixed for its window's life, so a gesture never straddles a change.
@@ -253,11 +269,26 @@ class DockState extends State<Dock> {
   }
 
   void _loadApps(DockConfig config) {
+    // Each id takes the identity of the first unclaimed app of that id, so a
+    // pinned app twice over still keys two distinct buttons.
+    final identities = <String, List<Object>>{};
+    for (final app in _apps) {
+      (identities[app.appId] ??= []).add(app.identity);
+    }
     final apps = <_DockApp>[];
     for (final appId in config.apps) {
       final entry = loadAppById(appId);
       if (entry == null) continue;
-      apps.add(_DockApp(appId: appId, entry: entry));
+      final previous = identities[appId];
+      apps.add(
+        _DockApp(
+          appId: appId,
+          entry: entry,
+          identity: previous != null && previous.isNotEmpty
+              ? previous.removeAt(0)
+              : Object(),
+        ),
+      );
     }
     // Release the previously-resolved GAppInfo pointers before swapping.
     final previous = _apps;
@@ -355,8 +386,7 @@ class DockState extends State<Dock> {
   bool _onDragEnd() {
     _pressAlong = null;
     if (!_dragging) return false;
-    setState(() => _dragIndex = null);
-    _publishDragOffset();
+    _settle();
     _persistOrder();
     return true;
   }
@@ -364,9 +394,21 @@ class DockState extends State<Dock> {
   void _onDragCancel() {
     _pressAlong = null;
     if (!_dragging) return;
-    setState(() => _dragIndex = null);
-    _publishDragOffset();
+    _settle();
     _persistOrder();
+  }
+
+  /// Ends a drag, keeping its slot pitch for the frame the drop lands in.
+  ///
+  /// [_dragOffset] is deliberately left where the pointer had it: the dropped
+  /// icon's slot reads it on that frame to know where the icon was let go, and
+  /// the next drag republishes it before any slot listens to it again.
+  void _settle() {
+    setState(() {
+      _dragIndex = null;
+      _settleStep = _slotStep;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _settleStep = null);
   }
 
   void _persistOrder() {
@@ -412,6 +454,7 @@ class DockState extends State<Dock> {
 
   Widget _buildButton(_DockApp app, int index, int size, Color foreground) {
     final dragging = index == _dragIndex;
+    final step = _dragging ? _slotStep : _settleStep;
     // Two rules, and the drag depends on both.
     //
     // Keyed by identity, because the list is reordered mid-gesture: without a
@@ -430,8 +473,12 @@ class DockState extends State<Dock> {
     // wrapper around again and kills it too. Hence: same shape at rest and in
     // flight, and only [DockSlot.offset] tells them apart.
     return DockSlot(
-      key: ObjectKey(app),
+      key: ObjectKey(app.identity),
       offset: dragging ? _dragOffset : kNoDragOffset,
+      // Where the slot starts, around a drag; every icon is one length, so
+      // that is its index times the pitch.
+      slot: step == null ? null : index * step,
+      held: dragging,
       axis: _vertical ? Axis.vertical : Axis.horizontal,
       child: _buildButtonContent(app, dragging, size, foreground),
     );
@@ -464,7 +511,7 @@ class DockState extends State<Dock> {
 }
 
 /// One dock button's slot: a fixed-shape wrapper that translates its child by
-/// [offset].
+/// [offset], and slides it when its [slot] moves.
 ///
 /// The dragged button follows the pointer by painting outside its slot — nothing
 /// here clips, and its siblings have already shifted into the order the drop
@@ -472,16 +519,28 @@ class DockState extends State<Dock> {
 /// listenable it is given, never by its shape; [DockState._buildButton] explains
 /// why that matters.
 ///
+/// **The others slide aside, and the dropped one settles**, as a module does
+/// along its section of the bar (`bar_module_drag.dart`, on the same pace and
+/// curve). When [slot] changes between two builds that both know it, the button
+/// is drawn where it was and eases to where it now is — from wherever it was
+/// drawn, so a slide interrupted by another, or a drop from under the pointer,
+/// starts from what is on screen. A [held] button follows its [offset] exactly.
+/// [slot] is known only around a drag, so outside one and the frame its drop
+/// lands in nothing animates; the controller is made at the first slide and
+/// ticks only while one runs.
+///
 /// The two repaint boundaries are the pair the shell's repaint discipline calls
 /// for around an animating layer: the inner one gives the translation a
 /// composited layer to move rather than a picture to re-record, and the outer
 /// one keeps the dirtied [Transform] from re-recording the whole panel around
 /// it — a panel has no repaint boundary of its own. They earn their keep at rest
 /// too, where they contain each button's hover tint.
-class DockSlot extends StatelessWidget {
+class DockSlot extends StatefulWidget {
   const DockSlot({
     super.key,
     required this.offset,
+    this.slot,
+    this.held = false,
     this.axis = Axis.horizontal,
     required this.child,
   });
@@ -490,23 +549,85 @@ class DockSlot extends StatelessWidget {
   /// button.
   final ValueListenable<double> offset;
 
+  /// Where the slot starts along the dock, around a drag; null otherwise.
+  final double? slot;
+
+  /// Whether this is the button being dragged, which never slides.
+  final bool held;
+
   /// The way the bar runs, and so the way a dragged button moves.
   final Axis axis;
 
   final Widget child;
 
   @override
+  State<DockSlot> createState() => _DockSlotState();
+}
+
+class _DockSlotState extends State<DockSlot>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+
+  /// How far from its target the button was drawn when the running slide
+  /// began; it is drawn `_from × (1 − curve(t))` away.
+  double _from = 0;
+
+  double get _residual {
+    final controller = _controller;
+    if (controller == null || !controller.isAnimating) return 0;
+    return _from * (1 - kBarSlideCurve.transform(controller.value));
+  }
+
+  @override
+  void didUpdateWidget(DockSlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.held) {
+      _controller?.stop();
+      return;
+    }
+    final from = oldWidget.slot;
+    final slot = widget.slot;
+    if (from == null || slot == null) return;
+    // The old listenable still holds what was drawn: for the dropped button,
+    // where the pointer let it go (see `DockState._settle`).
+    final was = from + oldWidget.offset.value + _residual;
+    final now = slot + widget.offset.value;
+    if ((was - now).abs() < 0.5) return;
+    _from = was - now;
+    (_controller ??= AnimationController(
+      vsync: this,
+      duration: kBarSlideDuration,
+    )).forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // One shape whatever the state, so the button beneath keeps its element.
     return RepaintBoundary(
-      child: ValueListenableBuilder<double>(
-        valueListenable: offset,
-        builder: (context, d, child) => Transform.translate(
-          offset: axis == Axis.vertical ? Offset(0, d) : Offset(d, 0),
+      child: AnimatedBuilder(
+        animation: _controller ?? kAlwaysCompleteAnimation,
+        child: RepaintBoundary(child: widget.child),
+        builder: (context, child) => ValueListenableBuilder<double>(
+          valueListenable: widget.offset,
+          builder: (context, d, child) {
+            final along = d + _residual;
+            return Transform.translate(
+              offset: widget.axis == Axis.vertical
+                  ? Offset(0, along)
+                  : Offset(along, 0),
+              child: child,
+            );
+          },
+          // Handed through unrebuilt: a pointer move or a tick re-runs one
+          // [Transform] and touches nothing else in the dock.
           child: child,
         ),
-        // Handed through unrebuilt: a pointer move re-runs one [Transform] and
-        // touches nothing else in the dock.
-        child: RepaintBoundary(child: child),
       ),
     );
   }

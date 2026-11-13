@@ -38,6 +38,12 @@ import 'package:moonswing/bar_module_row.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/theme/tokens.dart';
 
+/// How long a module, or a dock icon, takes to slide into a new slot around a
+/// drag, and the curve it slides on. One pair for both, so a module moving
+/// along its section and an icon moving along the dock read as one gesture.
+const Duration kBarSlideDuration = ShellDurations.slow;
+const Curve kBarSlideCurve = Curves.easeOutCubic;
+
 /// How far a press must travel before it is a drag of the module under it:
 /// past both a tap's slop, so the tap is already cancelled, and a pan's, so a
 /// module's own drag has had the chance to claim the press.
@@ -379,8 +385,8 @@ class _BarSlide extends StatefulWidget {
 
 class _BarSlideState extends State<_BarSlide>
     with SingleTickerProviderStateMixin {
-  static const Duration _duration = ShellDurations.slow;
-  static const Curve _curve = Curves.easeOutCubic;
+  static const Duration _duration = kBarSlideDuration;
+  static const Curve _curve = kBarSlideCurve;
 
   AnimationController? _controller;
 
