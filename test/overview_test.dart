@@ -56,6 +56,7 @@ void main() {
       OverviewTab.systemInfo,
       OverviewTab.settings,
       OverviewTab.todo,
+      OverviewTab.code,
       OverviewTab.shortcuts,
     ]) {
       expect(isOverviewTab(tab), isTrue, reason: tab);

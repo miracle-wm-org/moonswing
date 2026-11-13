@@ -189,6 +189,7 @@ FontGlyph? lucideGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.pullRequest => const FontGlyph(LucideIcons.gitPullRequest),
   ShellGlyph.merge => const FontGlyph(LucideIcons.gitMerge),
   ShellGlyph.commit => const FontGlyph(LucideIcons.gitCommitHorizontal),
+  ShellGlyph.code => const FontGlyph(LucideIcons.code),
   // Today's Material callers (moon, fortune, weather location).
   ShellGlyph.tides => const FontGlyph(LucideIcons.waves),
   ShellGlyph.nightLight => const FontGlyph(LucideIcons.moonStar),
@@ -199,6 +200,7 @@ FontGlyph? lucideGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.myLocation => const FontGlyph(LucideIcons.locateFixed),
   // Brands.
   ShellGlyph.github => null,
+  ShellGlyph.gitlab => null,
   ShellGlyph.linux => null,
   ShellGlyph.googleDrive => null,
 };

@@ -11,6 +11,8 @@ import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
+import 'package:moonswing/gitlab/gitlab_account_store.dart';
+import 'package:moonswing/gitlab/gitlab_token_store.dart';
 import 'package:moonswing/google/google_account_file.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
@@ -20,6 +22,7 @@ import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'caldav_fakes.dart';
+import 'code_fakes.dart';
 import 'github_fakes.dart';
 import 'google_fakes.dart';
 
@@ -248,6 +251,11 @@ void main() {
       final caldav = CalDavAccountStore.forTesting(
         directory: '${tempDir.path}/caldav',
       );
+      final gitlab = GitlabAccountStore.forTesting(
+        client: FakeGitlabClient(),
+        tokens: GitlabTokenStore(directory: '${tempDir.path}/gitlab'),
+      )..seed(username: 'tanuki');
+      addTearDown(gitlab.dispose);
 
       await tester.pumpWidget(
         _host(
@@ -255,6 +263,7 @@ void main() {
             google: googleAccount,
             googleCalendar: calendar,
             github: account,
+            gitlab: gitlab,
             caldav: caldav,
             child: const AccountsSettingsPage(),
           ),
@@ -262,12 +271,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Every card, the scope's GitHub account on one of them.
+      // Every card, the scope's GitHub and GitLab accounts on theirs.
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Sign in with Google'), findsOneWidget);
       expect(find.text('octocat'), findsOneWidget);
+      expect(find.text('GitLab'), findsOneWidget);
+      expect(find.text('tanuki'), findsOneWidget);
       expect(find.text('CalDAV'), findsOneWidget);
-      expect(find.byType(BrandMark), findsNWidgets(3));
+      expect(find.byType(BrandMark), findsNWidgets(4));
     });
   });
 

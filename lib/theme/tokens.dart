@@ -115,6 +115,14 @@ abstract final class ShellFontSizes {
 /// The one error red; keep it singular.
 const Color kErrorColor = Color(0xFFE06C75);
 
+/// The one caution amber, [kErrorColor]'s neighbour from the same palette;
+/// keep it singular too.
+///
+/// For something that is not broken but has been left too long — the Code
+/// tab's stale pull requests — where the error red would say "failed" and the
+/// accent would say nothing at all.
+const Color kWarningColor = Color(0xFFE5C07B);
+
 /// Text/iconography drawn on top of `theme.accent` fills.
 ///
 /// The other half of the pair is `ThemeConfig.accentText`: this is what goes

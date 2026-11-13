@@ -82,9 +82,12 @@ including the Limited Use requirements.
 ## Other network features
 
 Some parts of the shell fetch data only when you turn them on. For example, the weather
-module queries a weather service, and the GitHub module reads the account linked under
-Settings › Accounts. They also talk
+module queries a weather service, and the GitHub module and the overview's Code tab read
+the GitHub or GitLab account linked under Settings › Accounts. They also talk
 to those services directly from your computer, and nothing passes through the project.
+A GitLab account is linked with a personal access token you create on your GitLab; it is
+kept in `~/.local/state/moonswing/gitlab-account`, readable only by you, and **Sign out**
+deletes it (revoking the token is done on the GitLab page it was made on).
 
 ## Changes
 
