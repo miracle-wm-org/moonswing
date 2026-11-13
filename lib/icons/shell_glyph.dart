@@ -195,10 +195,11 @@ enum ShellGlyph {
   cloudSun,
   location,
 
-  // GitHub's subjects.
+  // Version control: GitHub's and GitLab's subjects, and the Code tab.
   pullRequest,
   merge,
   commit,
+  code,
 
   // The moon, fortune and weather cards' glyphs, which were Material Symbols
   // before there was a choice — and so still are under Font Awesome.
@@ -212,13 +213,17 @@ enum ShellGlyph {
 
   // Logos. Packs that have none fall back to Font Awesome's.
   github,
+  gitlab,
   linux,
   googleDrive;
 
   /// Whether this is a logo rather than a symbol. A pack may draw a brand its
   /// own way (Remix has a GitHub mark); most have none and fall back.
   bool get isBrand => switch (this) {
-    ShellGlyph.github || ShellGlyph.linux || ShellGlyph.googleDrive => true,
+    ShellGlyph.github ||
+    ShellGlyph.gitlab ||
+    ShellGlyph.linux ||
+    ShellGlyph.googleDrive => true,
     _ => false,
   };
 }

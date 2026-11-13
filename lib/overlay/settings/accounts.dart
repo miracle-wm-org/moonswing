@@ -1,6 +1,6 @@
 // Settings › Accounts: the services the whole shell signs in to once — any
-// number of Google accounts, a GitHub account and a CalDAV server — each on a
-// card in the
+// number of Google accounts, a GitHub account, a GitLab account and CalDAV
+// servers — each on a card in the
 // service's own colours, saying whether it is linked, as whom, and what in the
 // shell reads it.
 //
@@ -21,11 +21,13 @@ import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
+import 'package:moonswing/gitlab/gitlab_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/accounts/caldav_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
+import 'package:moonswing/overlay/settings/accounts/gitlab_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
@@ -35,16 +37,19 @@ class AccountsSettingsPage extends StatefulWidget {
     super.key,
     GoogleAccountStore? account,
     GithubAccountStore? github,
+    GitlabAccountStore? gitlab,
     CalDavAccountStore? caldav,
     this.copy = copyTextToClipboard,
   }) : _account = account,
        _github = github,
+       _gitlab = gitlab,
        _caldav = caldav;
 
   /// Injected by widget tests, so nothing here touches the network. Null reads
   /// the [AccountsScope].
   final GoogleAccountStore? _account;
   final GithubAccountStore? _github;
+  final GitlabAccountStore? _gitlab;
   final CalDavAccountStore? _caldav;
 
   /// How the GitHub sign-in code reaches the clipboard; tests must not fork
@@ -60,6 +65,8 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
       widget._account ?? AccountsScope.googleOf(context);
   late final GithubAccountStore _github =
       widget._github ?? AccountsScope.githubOf(context);
+  late final GitlabAccountStore _gitlab =
+      widget._gitlab ?? AccountsScope.gitlabOf(context);
   late final CalDavAccountStore _caldav =
       widget._caldav ?? AccountsScope.caldavOf(context);
 
@@ -68,6 +75,7 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
     super.initState();
     _account.load();
     _github.load();
+    _gitlab.load();
     _caldav.load();
   }
 
@@ -96,6 +104,8 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
                   ),
                   const SizedBox(height: kSettingsSectionGap),
                   GithubAccountCard(account: _github, copy: widget.copy),
+                  const SizedBox(height: kSettingsSectionGap),
+                  GitlabAccountCard(account: _gitlab),
                   const SizedBox(height: kSettingsSectionGap),
                   CalDavAccountCard(account: _caldav),
                 ],

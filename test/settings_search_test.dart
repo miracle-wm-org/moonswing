@@ -41,6 +41,7 @@ const _shellCategories = {
   'Power Button',
   'Volume & Sound',
   'Calendar',
+  'Code Dashboard',
 };
 
 /// The Window Manager categories, as `miracle.dart` titles them. Spelled here
@@ -201,6 +202,7 @@ void main() {
           'Google accounts',
           'CalDAV accounts',
           'GitHub account',
+          'GitLab account',
           // One section per linked Google account, titled by its address,
           // and one per CalDAV account.
           'Google calendars',
@@ -217,7 +219,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(25));
+      expect(unhighlightable, hasLength(26));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

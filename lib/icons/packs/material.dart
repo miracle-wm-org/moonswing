@@ -1005,6 +1005,12 @@ FontGlyph? materialGlyph(ShellGlyph glyph, IconPack style) => switch (glyph) {
     Symbols.commit_rounded,
     Symbols.commit_sharp,
   ),
+  ShellGlyph.code => _m(
+    style,
+    Symbols.code,
+    Symbols.code_rounded,
+    Symbols.code_sharp,
+  ),
   // Today's Material callers (moon, fortune, weather location).
   ShellGlyph.tides => _m(
     style,
@@ -1050,6 +1056,7 @@ FontGlyph? materialGlyph(ShellGlyph glyph, IconPack style) => switch (glyph) {
   ),
   // Brands.
   ShellGlyph.github => null,
+  ShellGlyph.gitlab => null,
   ShellGlyph.linux => null,
   ShellGlyph.googleDrive => null,
 };

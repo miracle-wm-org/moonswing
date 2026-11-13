@@ -27,8 +27,10 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/caldav/caldav_calendar_store.dart';
+import 'package:moonswing/code/code_store.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_store.dart';
+import 'package:moonswing/gitlab/gitlab_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
 
@@ -41,8 +43,10 @@ class AccountsScope extends InheritedWidget {
     this.github,
     this.githubNotifications,
     this.githubLinks,
+    this.gitlab,
     this.caldav,
     this.caldavCalendar,
+    this.code,
     required super.child,
   });
 
@@ -53,8 +57,10 @@ class AccountsScope extends InheritedWidget {
       github = GithubAccountStore.instance,
       githubNotifications = GithubStore.instance,
       githubLinks = GithubLinkStore.instance,
+      gitlab = GitlabAccountStore.instance,
       caldav = CalDavAccountStore.instance,
-      caldavCalendar = CalDavCalendarStore.instance;
+      caldavCalendar = CalDavCalendarStore.instance,
+      code = CodeStore.instance;
 
   /// The Google accounts — any number — and the access token behind each.
   /// Null falls through to [GoogleAccountStore.instance].
@@ -72,11 +78,18 @@ class AccountsScope extends InheritedWidget {
   /// The titles behind links to GitHub issues and pull requests.
   final GithubLinkStore? githubLinks;
 
+  /// The GitLab account — on gitlab.com or a self-managed instance — and the
+  /// token behind every request.
+  final GitlabAccountStore? gitlab;
+
   /// The CalDAV servers — any number — and the calendars on each.
   final CalDavAccountStore? caldav;
 
   /// Every chosen calendar of every CalDAV account, leased by time window.
   final CalDavCalendarStore? caldavCalendar;
+
+  /// What every linked forge says is waiting on the user — the Code tab's.
+  final CodeStore? code;
 
   static AccountsScope? _scope(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AccountsScope>();
@@ -104,6 +117,16 @@ class AccountsScope extends InheritedWidget {
   static GithubLinkStore githubLinksOf(BuildContext context) =>
       _scope(context)?.githubLinks ?? GithubLinkStore.instance;
 
+  /// The GitLab account: [GitlabAccountStore.label], the connect, and
+  /// [GitlabAccountStore.withToken] for a request of a module's own.
+  static GitlabAccountStore gitlabOf(BuildContext context) =>
+      _scope(context)?.gitlab ?? GitlabAccountStore.instance;
+
+  /// The review requests, changes, issues and shipped work of every linked
+  /// forge.
+  static CodeStore codeOf(BuildContext context) =>
+      _scope(context)?.code ?? CodeStore.instance;
+
   /// The CalDAV accounts: [CalDavAccountStore.accounts], their calendars and
   /// task lists, and [CalDavAccountStore.clientFor] for a request of a
   /// module's own.
@@ -121,6 +144,8 @@ class AccountsScope extends InheritedWidget {
       github != old.github ||
       githubNotifications != old.githubNotifications ||
       githubLinks != old.githubLinks ||
+      gitlab != old.gitlab ||
       caldav != old.caldav ||
-      caldavCalendar != old.caldavCalendar;
+      caldavCalendar != old.caldavCalendar ||
+      code != old.code;
 }

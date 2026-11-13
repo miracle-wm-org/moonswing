@@ -92,6 +92,14 @@ export const PAGES = [
     sections: ['Google Account'],
   },
   {
+    slug: 'code',
+    title: 'Code dashboard',
+    description:
+      'The overview\'s Code tab: review requests, your changes and issues ' +
+      'across GitHub and GitLab, staleness thresholds, and linking GitLab.',
+    sections: ['Code Dashboard'],
+  },
+  {
     slug: 'full-example',
     title: 'Full example',
     description: 'One config.toml exercising every section.',

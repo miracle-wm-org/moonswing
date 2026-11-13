@@ -61,6 +61,8 @@ import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
 import 'package:moonswing/github/github_account_store.dart';
+import 'package:moonswing/gitlab/gitlab_account_store.dart';
+import 'package:moonswing/code/code_service.dart';
 import 'package:moonswing/google/google_service.dart';
 import 'package:moonswing/news/news_service.dart';
 import 'package:moonswing/news/news_store.dart';
@@ -364,6 +366,11 @@ void _startShellServices({
   // The GitHub account, likewise: a file read and no network until a consumer
   // takes a lease, so Settings › Accounts opens knowing whether it is linked.
   unawaited(GithubAccountStore.instance.load());
+  // And GitLab's: the instance and token off disk, nothing on the network.
+  unawaited(GitlabAccountStore.instance.load());
+  // The overview's Code tab: reads `[code]`, and reads neither forge until
+  // the tab is showing.
+  startCodeService();
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen

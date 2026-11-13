@@ -27,6 +27,7 @@ const Map<IconPack, Set<ShellGlyph>> _kFallbacks = {
   // Lucide dropped its logos.
   IconPack.lucide: {
     ShellGlyph.github,
+    ShellGlyph.gitlab,
     ShellGlyph.linux,
     ShellGlyph.googleDrive,
   },
@@ -36,6 +37,7 @@ const Map<IconPack, Set<ShellGlyph>> _kFallbacks = {
 const Set<ShellGlyph> _materialFallbacks = {
   ShellGlyph.pullRequest,
   ShellGlyph.github,
+  ShellGlyph.gitlab,
   ShellGlyph.linux,
   ShellGlyph.googleDrive,
 };
@@ -176,7 +178,12 @@ void main() {
           for (final g in ShellGlyph.values)
             if (g.isBrand) g,
         },
-        {ShellGlyph.github, ShellGlyph.linux, ShellGlyph.googleDrive},
+        {
+          ShellGlyph.github,
+          ShellGlyph.gitlab,
+          ShellGlyph.linux,
+          ShellGlyph.googleDrive,
+        },
       );
     });
   });
