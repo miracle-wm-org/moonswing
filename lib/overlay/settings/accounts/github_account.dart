@@ -51,13 +51,17 @@ class GithubAccountCard extends StatelessWidget {
           },
           info:
               'Sign in once for the whole shell. The GitHub bar module shows '
-              'your notification inbox from it, and any other module or '
+              'your notification inbox from it, the overview\'s Code tab your '
+              'review requests, pull requests and issues, and any other module or '
               'desktop widget that reads GitHub uses the same account. The '
               'sign-in is GitHub\'s device flow: your password is typed into '
               'github.com, never into the shell, and the token it grants is '
               'kept in ~/.local/state/moonswing at 0600. Signing out forgets '
               'it here; revoking it is done on github.com.',
-          usedBy: const [(ShellGlyph.bell, 'GitHub notifications')],
+          usedBy: const [
+            (ShellGlyph.bell, 'GitHub notifications'),
+            (ShellGlyph.code, 'Code tab'),
+          ],
           children: [
             if (error.isNotEmpty) ...[
               SettingsBanner(

@@ -2111,6 +2111,75 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  static final gitlabAccount = _pane(
+    'accounts',
+    'Accounts',
+    'GitLab account',
+    description:
+        'Link gitlab.com or your own GitLab with a read-only token, so the '
+        'Code tab shows its merge requests, issues and to-dos.',
+    tags: const [
+      'gitlab',
+      'git',
+      'sign in',
+      'login',
+      'account',
+      'accounts',
+      'token',
+      'merge requests',
+      'self-hosted',
+    ],
+  );
+
+  // -------------------------------------------------------------------------
+  // Shell › Code Dashboard
+  // -------------------------------------------------------------------------
+
+  static final codeReviewStaleDays = shellField(
+    'code.review_stale_days',
+    'Reviews stale after (days)',
+    section: kCodeSettingsCategory,
+    description:
+        'How long a review request can wait on you before the Code tab calls '
+        'it stale. Short, because somebody else is waiting.',
+    tags: const ['code', 'review', 'stale', 'github', 'gitlab', 'reminder'],
+  );
+  static final codeStaleDays = shellField(
+    'code.stale_days',
+    'Your changes stale after (days)',
+    section: kCodeSettingsCategory,
+    description:
+        'How long one of your own pull or merge requests can go without '
+        'activity before it is called stale.',
+    tags: const ['code', 'pull request', 'merge request', 'stale', 'idle'],
+  );
+  static final codeIssueStaleDays = shellField(
+    'code.issue_stale_days',
+    'Issues stale after (days)',
+    section: kCodeSettingsCategory,
+    description:
+        'How long an issue assigned to you can go without activity before it '
+        'is called stale.',
+    tags: const ['code', 'issue', 'assigned', 'stale', 'idle'],
+  );
+  static final codeShippedDays = shellField(
+    'code.shipped_days',
+    'Shipped window (days)',
+    section: kCodeSettingsCategory,
+    description:
+        'How far back the Shipped list reaches for your merged changes.',
+    tags: const ['code', 'merged', 'shipped', 'history', 'week'],
+  );
+  static final codeRefreshMinutes = shellField(
+    'code.refresh_minutes',
+    'Refresh every (minutes)',
+    section: kCodeSettingsCategory,
+    description:
+        'How often GitHub and GitLab are read again while the Code tab is '
+        'showing. Nothing is read while it is not.',
+    tags: const ['code', 'github', 'gitlab', 'poll', 'interval', 'refresh'],
+  );
+
   // -------------------------------------------------------------------------
   // The hardware panes
   //
@@ -3293,6 +3362,12 @@ abstract final class SettingsCatalog {
     googleAccount,
     caldavAccount,
     githubAccount,
+    gitlabAccount,
+    codeReviewStaleDays,
+    codeStaleDays,
+    codeIssueStaleDays,
+    codeShippedDays,
+    codeRefreshMinutes,
     ..._hardware,
     powerPane,
     ...powerFields,

@@ -184,6 +184,7 @@ FontGlyph? remixGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.pullRequest => const FontGlyph(RemixIcons.git_pull_request_line),
   ShellGlyph.merge => const FontGlyph(RemixIcons.git_merge_line),
   ShellGlyph.commit => const FontGlyph(RemixIcons.git_commit_line),
+  ShellGlyph.code => const FontGlyph(RemixIcons.code_s_slash_line),
   // Today's Material callers (moon, fortune, weather location).
   ShellGlyph.tides => const FontGlyph(RemixIcons.water_flash_line),
   ShellGlyph.nightLight => const FontGlyph(RemixIcons.moon_clear_line),
@@ -194,6 +195,7 @@ FontGlyph? remixGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.myLocation => const FontGlyph(RemixIcons.focus_3_line),
   // Brands.
   ShellGlyph.github => const FontGlyph(RemixIcons.github_fill),
+  ShellGlyph.gitlab => const FontGlyph(RemixIcons.gitlab_fill),
   ShellGlyph.linux => const FontGlyph(RemixIcons.ubuntu_fill),
   ShellGlyph.googleDrive => const FontGlyph(RemixIcons.google_fill),
 };

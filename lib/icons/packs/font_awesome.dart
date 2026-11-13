@@ -195,6 +195,7 @@ PackGlyph fontAwesomeGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.pullRequest => const FaGlyph(FontAwesomeIcons.codePullRequest),
   ShellGlyph.merge => const FaGlyph(FontAwesomeIcons.codeMerge),
   ShellGlyph.commit => const FaGlyph(FontAwesomeIcons.codeCommit),
+  ShellGlyph.code => const FaGlyph(FontAwesomeIcons.code),
   // Today's Material callers (moon, fortune, weather location).
   ShellGlyph.tides => const FontGlyph(Symbols.waves),
   ShellGlyph.nightLight => const FontGlyph(Symbols.nightlight),
@@ -205,6 +206,7 @@ PackGlyph fontAwesomeGlyph(ShellGlyph glyph) => switch (glyph) {
   ShellGlyph.myLocation => const FontGlyph(Symbols.my_location),
   // Brands.
   ShellGlyph.github => const FaGlyph(FontAwesomeIcons.github),
+  ShellGlyph.gitlab => const FaGlyph(FontAwesomeIcons.gitlab),
   ShellGlyph.linux => const FaGlyph(FontAwesomeIcons.linux),
   ShellGlyph.googleDrive => const FaGlyph(FontAwesomeIcons.googleDrive),
 };

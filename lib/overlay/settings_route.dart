@@ -8,6 +8,9 @@ const String kModuleSettingsCategory = 'Modules';
 /// The Shell category with a tab per configured panel.
 const String kPanelsSettingsCategory = 'Panels & Layout';
 
+/// The Shell category holding `[code]` — the Code tab's staleness thresholds.
+const String kCodeSettingsCategory = 'Code Dashboard';
+
 /// The overview's top tab ids, in the order the tab strip draws them.
 ///
 /// The overview — the panel the clock opens — is the one window the calendar,
@@ -20,6 +23,7 @@ abstract final class OverviewTab {
   static const String systemInfo = 'systeminfo';
   static const String settings = 'settings';
   static const String todo = 'todo';
+  static const String code = 'code';
   static const String shortcuts = 'shortcuts';
 }
 

@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:moonswing/code/code_dashboard.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
@@ -170,6 +171,10 @@ const List<_OverlayTab> _tabs = [
     label: 'Kanban',
     icon: ShellGlyph.listCheck,
   ),
+  // Everything waiting on the user across GitHub and GitLab. A tab rather
+  // than a bar module's popup because it is a workspace: four lists, a filter
+  // and an inbox do not fit a menu, and the overview is where workspaces open.
+  _OverlayTab(id: OverviewTab.code, label: 'Code', icon: ShellGlyph.code),
   _OverlayTab(
     id: OverviewTab.shortcuts,
     label: 'Shortcuts',
@@ -714,6 +719,12 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           // The overview's own: Escape with nothing left on the board to back
           // out of closes the overview, and a date picker goes as it leaves.
           closingNotifier: widget.closingNotifier,
+          active: active,
+          onOpenAccounts: () => _openSettingsPage(SettingsRoute.accounts),
+        );
+      case OverviewTab.code:
+        return CodeDashboard(
+          // Holds the forges' leases only while showing; see its doc.
           active: active,
           onOpenAccounts: () => _openSettingsPage(SettingsRoute.accounts),
         );

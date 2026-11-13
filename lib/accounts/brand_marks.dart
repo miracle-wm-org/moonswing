@@ -10,7 +10,9 @@
 // `assets:` section: nothing in the shell resolves paths relative to the
 // bundle. Google's G is four arcs and a bar; GitHub's mark is Font
 // Awesome's, under every `icon_pack` — a theme chooses the shell's look, not
-// somebody else's logo — and so is CalDAV's calendar, to match it. CalDAV is
+// somebody else's logo — and so are GitLab's tanuki and CalDAV's calendar, to
+// match it. GitLab, like CalDAV, is never a sign-in *button*: its sign-in is a
+// token pasted into a form, not a page of GitLab's that a button opens. CalDAV is
 // an open protocol with no brand of its own, so its tile is a plain calendar
 // in a neutral slate — the one mark here that is not
 // somebody's livery, and which is never a sign-in *button*, since there is no
@@ -32,6 +34,7 @@ import 'package:moonswing/theme/tokens.dart';
 enum AccountBrand {
   google('Google'),
   github('GitHub'),
+  gitlab('GitLab'),
   caldav('CalDAV');
 
   const AccountBrand(this.label);
@@ -66,6 +69,14 @@ abstract final class GithubColors {
   static const Color canvasHover = Color(0xFF32383F);
 
   /// A hairline round the dark tile, so it holds its edge on a dark theme.
+  static const Color outline = Color(0x2EFFFFFF);
+}
+
+/// GitLab's brand colours: the tanuki's orange on the charcoal of GitLab's own
+/// dark surfaces.
+abstract final class GitlabColors {
+  static const Color canvas = Color(0xFF171321);
+  static const Color mark = Color(0xFFFC6D26);
   static const Color outline = Color(0x2EFFFFFF);
 }
 
@@ -113,6 +124,22 @@ class BrandMark extends StatelessWidget {
           color: GithubColors.mark,
           // A logo is the brand's drawing under every theme, as its colours
           // are; see the file header.
+          pack: IconPack.fontAwesome,
+        ),
+      ),
+      AccountBrand.gitlab => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: GitlabColors.canvas,
+          borderRadius: radius,
+          border: Border.all(color: GitlabColors.outline),
+        ),
+        alignment: Alignment.center,
+        child: ShellIcon(
+          ShellGlyph.gitlab,
+          size: size * 0.6,
+          color: GitlabColors.mark,
           pack: IconPack.fontAwesome,
         ),
       ),

@@ -488,7 +488,9 @@ code in there, authorise the app, and the shell takes it from there — your
 password is never typed into the shell and never reaches it. Closing the
 settings half-way through loses nothing: the code stays on the card until it
 expires. Anything else in the shell that reads GitHub uses the same account —
-the todo board, for one, shows a link to an issue or pull request by its title.
+the todo board, for one, shows a link to an issue or pull request by its title,
+and the overview's Code tab (see Code Dashboard) your review requests, pull
+requests and issues.
 
 The access token is written to `~/.local/state/moonswing/github-token`
 (mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** on
@@ -2275,6 +2277,56 @@ show_in_calendar = true
 todo_sync = true
 refresh_minutes = 5
 ```
+
+## Code Dashboard
+
+The overview's **Code** tab, after Kanban, is one dashboard for everything waiting on you across GitHub and GitLab: the reviews somebody has asked you for, your own open pull and merge requests and what each one needs, the issues assigned to you, your inbox, and what you merged lately. Anything left too long is called **stale**, so nothing quietly sits waiting on you or on somebody else.
+
+It reads the accounts linked under Settings › **Accounts** — GitHub (see the GitHub module's *Signing in*), GitLab (below), or both — and nothing else. With neither linked, the tab says what it would show and has a button that goes to Accounts. Nothing is read while the tab is not the one showing.
+
+```toml
+[code]
+review_stale_days = 2
+stale_days = 7
+issue_stale_days = 14
+shipped_days = 7
+refresh_minutes = 5
+```
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `review_stale_days` | int | `2` | Days a review request can wait on you before it is stale (1–365). Short, because somebody else is waiting. |
+| `stale_days` | int | `7` | Days one of your own open pull or merge requests can go without activity before it is stale (1–365). |
+| `issue_stale_days` | int | `14` | Days an issue assigned to you can go without activity before it is stale (1–365). |
+| `shipped_days` | int | `7` | How far back the **Shipped** list reaches for your merged changes (1–90). |
+| `refresh_minutes` | int | `5` | How often both forges are read again while the tab is showing (1–120). |
+
+Settings › Shell › **Code Dashboard** edits the same keys; the sliders button at the top right of the tab goes there.
+
+### What the tab shows
+
+- **Four numbers across the top.** Review requests, your changes, assigned issues, and how many of them are stale. Each is also a filter: click one to show only that list, and the **Stale** tile to show only what has gone quiet, in every list. Click it again for everything.
+- **Review requests**, longest-waiting first — a queue, not a feed: the one somebody has waited on longest is the one to go to next.
+- **Your changes**, with what each needs: *Conflicts*, *Changes requested* and *Checks failing* in red come first, then whatever has gone stale, then the rest. *Ready to merge* means approved, passing and mergeable; *Draft* and *Checks running* are said quietly.
+- **Assigned issues**, stale first.
+- **Inbox**: GitHub's notifications (the same list the GitHub module shows, read on its cadence) and GitLab's to-dos, together, unread first. The tick beside a row marks it read or done; the double tick marks the lot.
+- **Shipped**: what you merged within `shipped_days`.
+
+Every row opens its page in your browser. With both forges linked, each row carries its forge's mark, and clicking an account chip at the top narrows the whole tab to that forge.
+
+**How stale is measured.** From the last activity on the item — a push, a comment, a review. Past half its threshold the age turns amber; past the whole threshold it becomes an hourglass pill with an amber bar down the row's edge, and the section heading counts it. Hover the age for how long it has been quiet and what the limit is.
+
+### GitLab
+
+GitLab — gitlab.com or a self-managed instance — is linked on its own card under Settings › **Accounts** with a **personal access token** rather than a browser sign-in, because GitLab's browser sign-in needs an application registered on each instance. Type the instance (it defaults to `gitlab.com`), press **Create a token** — your instance's token page opens with the name *Moonswing* and the `read_api` scope already filled in — choose an expiry, create it, paste it in, and **Connect**. The shell asks GitLab whose token it is before keeping anything, so a typo is said on the card.
+
+The instance, the token and your user name are kept in `~/.local/state/moonswing/gitlab-account` (mode 0600, in a 0700 directory), never in `config.toml`. **Sign out** deletes the file; revoking the token is done on the page it was made on, which the key button beside **Sign out** opens. Tokens expire: when GitLab stops accepting one, the account signs out with the reason on the card.
+
+`read_api` is read-only, which is everything the tab does except marking to-dos done: that needs a token with the `api` scope, and with `read_api` the tab says so rather than failing silently. To-dos can still be opened either way.
+
+### Private GitHub repositories
+
+The GitHub sign-in asks for the `notifications` scope by default, which reads public repositories only. To see review requests, pull requests and issues in **private** repositories, add `repo` to `scopes` under `[modules.github]` and sign in again — see the GitHub module's *Signing in*. The tab says so at the bottom of its lists while it is reading without it.
 
 ## Notifications
 

@@ -11,6 +11,7 @@ import 'package:moonswing/config_store.dart';
 import 'package:moonswing/overlay/settings/shell/appearance.dart';
 import 'package:moonswing/overlay/settings/shell/background.dart';
 import 'package:moonswing/overlay/settings/shell/calendar.dart';
+import 'package:moonswing/overlay/settings/shell/code.dart';
 import 'package:moonswing/overlay/settings/shell/desktop.dart';
 import 'package:moonswing/overlay/settings/shell/lock.dart';
 import 'package:moonswing/overlay/settings/shell/modules.dart';
@@ -320,6 +321,12 @@ const List<_ShellCategory> _shellCategories = [
     icon: ShellGlyph.calendarDays,
     build: _buildCalendar,
   ),
+  _ShellCategory(
+    title: kCodeSettingsCategory,
+    subtitle: 'When reviews and changes go stale',
+    icon: ShellGlyph.code,
+    build: _buildCode,
+  ),
 ];
 
 Widget _buildAppearance(ConfigStore store) => AppearanceSection(store: store);
@@ -331,6 +338,7 @@ Widget _buildPower(ConfigStore store) => PowerSection(store: store);
 Widget _buildVolumeSound(ConfigStore store) =>
     VolumeSoundSection(store: store);
 Widget _buildCalendar(ConfigStore store) => CalendarSection(store: store);
+Widget _buildCode(ConfigStore store) => CodeSection(store: store);
 
 /// Landing view: the "Moonswing" header plus a tappable row per category.
 class _ShellHome extends StatelessWidget {
