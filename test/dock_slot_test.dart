@@ -40,6 +40,7 @@ Widget _dock(
   List<String> ids, {
   String? dragged,
   ValueListenable<double>? offset,
+  double? step,
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
@@ -47,10 +48,12 @@ Widget _dock(
       mainAxisSize: MainAxisSize.min,
       spacing: kDockSpacing,
       children: [
-        for (final id in ids)
+        for (final (i, id) in ids.indexed)
           DockSlot(
             key: ValueKey(id),
             offset: id == dragged ? offset! : kNoDragOffset,
+            slot: step == null ? null : i * step,
+            held: id == dragged,
             child: _Probe(label: id),
           ),
       ],
@@ -161,6 +164,73 @@ void main() {
       await tester.pumpWidget(_dock(['a', 'b']));
       expect(_translationOf(tester, 'a'), 0);
       expect(_translationOf(tester, 'b'), 0);
+    });
+  });
+
+  group('DockSlot slides', () {
+    // Each probe is 20 wide and the dock spaces them kDockSpacing apart.
+    const step = 20 + kDockSpacing;
+
+    double x(WidgetTester tester, String id) =>
+        tester.getTopLeft(find.byKey(ValueKey(id))).dx +
+        _translationOf(tester, id);
+
+    testWidgets('the button passed slides aside rather than jumping', (
+      tester,
+    ) async {
+      final offset = ValueNotifier<double>(0);
+      addTearDown(offset.dispose);
+      await tester.pumpWidget(
+        _dock(['a', 'b', 'c'], dragged: 'a', offset: offset, step: step),
+      );
+      // 'a' crosses into the second slot: the list is reordered, and the
+      // offset republished against a's new slot, in the same frame.
+      offset.value = step * 0.6 - step;
+      await tester.pumpWidget(
+        _dock(['b', 'a', 'c'], dragged: 'a', offset: offset, step: step),
+      );
+      // b is still drawn where it was on the frame it was passed…
+      expect(x(tester, 'b'), step);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(x(tester, 'b'), inExclusiveRange(0, step));
+      await tester.pumpAndSettle();
+      expect(x(tester, 'b'), 0);
+      // …and the held button never lags the pointer.
+      expect(x(tester, 'a'), step * 0.6);
+    });
+
+    testWidgets('the dropped button settles into its slot, then rests', (
+      tester,
+    ) async {
+      final offset = ValueNotifier<double>(0);
+      addTearDown(offset.dispose);
+      await tester.pumpWidget(
+        _dock(['a', 'b', 'c'], dragged: 'b', offset: offset, step: step),
+      );
+      offset.value = 9;
+      await tester.pump();
+      expect(x(tester, 'b'), step + 9);
+
+      // The drop's frame: b is no longer held, its slot kept for the frame.
+      await tester.pumpWidget(_dock(['a', 'b', 'c'], step: step));
+      expect(x(tester, 'b'), step + 9);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(x(tester, 'b'), inExclusiveRange(step, step + 9));
+
+      // The kept pitch goes after that frame; the slide carries on.
+      await tester.pumpWidget(_dock(['a', 'b', 'c']));
+      expect(x(tester, 'b'), inExclusiveRange(step, step + 9));
+      await tester.pumpAndSettle();
+      expect(x(tester, 'b'), step);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a reorder outside a drag moves at once', (tester) async {
+      await tester.pumpWidget(_dock(['a', 'b']));
+      await tester.pumpWidget(_dock(['b', 'a']));
+      expect(x(tester, 'a'), step);
+      expect(x(tester, 'b'), 0);
+      expect(tester.binding.transientCallbackCount, 0);
     });
   });
 }
