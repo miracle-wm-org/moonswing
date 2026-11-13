@@ -13,7 +13,7 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/display_layout.dart';
-import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:wayland/wayland.dart';
 
@@ -727,25 +727,39 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             SliverSettingsPage(
               sliver: SliverMainAxisGroup(
                 slivers: [
-                  // The arrangement on a card of its own in the page's
-                  // column, set apart from the monitors' cards by the gap
-                  // under it rather than by a rule across the pane.
+                  // The arrangement is a section like any other: the shared
+                  // heading over a settings card. The diagram fills the card
+                  // edge to edge rather than taking a section's row padding,
+                  // so it is the card itself rather than a `SettingsSection`.
                   SliverToBoxAdapter(
-                    child: Container(
-                      clipBehavior: Clip.antiAlias,
-                      decoration: settingsCardDecoration(theme),
-                      child: _DisplayDiagram(
-                        heads: manager.heads,
-                        edits: _edits,
-                        height: diagramHeight,
-                        onPositionsChanged: _applyPositions,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SettingsSectionHeading(
+                          label: 'Arrangement',
+                          info:
+                              'Drag a display to move it. Displays snap to '
+                              'one another\'s edges, and nothing changes '
+                              'until you apply.',
+                        ),
+                        const SizedBox(height: kSettingsHeadingGap),
+                        Container(
+                          clipBehavior: Clip.antiAlias,
+                          decoration: settingsCardDecoration(theme),
+                          child: _DisplayDiagram(
+                            heads: manager.heads,
+                            edits: _edits,
+                            height: diagramHeight,
+                            onPositionsChanged: _applyPositions,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  // `SliverList` rather than a `Column`, for the per-card
-                  // repaint boundary it hands out — a hover inside one card
-                  // must not re-record the diagram above it.
+                  // `SliverList` rather than a `Column`, for the per-section
+                  // repaint boundary it hands out — a hover inside one
+                  // monitor's section must not re-record the diagram above it.
                   SliverList.list(children: _buildCards(manager)),
                 ],
               ),
@@ -763,7 +777,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       if (edit == null) continue;
       cards.add(
         Padding(
-          padding: EdgeInsets.only(top: cards.isEmpty ? 0.0 : 16.0),
+          padding: const EdgeInsets.only(top: kSettingsSectionGap),
           child: _DisplayCard(
             head: head,
             edit: edit,
@@ -1081,9 +1095,11 @@ class _DisplayDragRecognizer extends PanGestureRecognizer {
 }
 
 // ---------------------------------------------------------------------------
-// _DisplayCard — one card per head
+// _DisplayCard — one section per head
 // ---------------------------------------------------------------------------
 
+/// One monitor's settings, as a [SettingsSection] of [SettingsRow]s — the
+/// heading, card and label column every other page uses.
 class _DisplayCard extends StatelessWidget {
   const _DisplayCard({
     required this.head,
@@ -1101,59 +1117,6 @@ class _DisplayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return PopupCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildCardHeader(theme),
-          if (edit.enabled) ...[const SettingsRule(), _buildCardBody(theme)],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardHeader(ThemeConfig theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  head.name,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (head.description.isNotEmpty)
-                  Text(
-                    head.description,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground.withValues(alpha: 0.6),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          SettingsToggle(
-            value: edit.enabled,
-            onChanged: (v) => onEditChanged(edit.copyWith(enabled: v)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardBody(ThemeConfig theme) {
     // A scale none of the presets is (set by another tool, or fractional
     // scaling's own arithmetic) is offered beside them rather than shown as no
     // value at all.
@@ -1162,63 +1125,66 @@ class _DisplayCard extends StatelessWidget {
     final scales = preset.isEmpty
         ? ([..._scales, edit.scale]..sort())
         : _scales;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildLabel('Resolution', theme),
-          const SizedBox(height: 6),
-          SettingsDropdown<ZwlrOutputModeV1>(
-            items: [
-              for (final mode in head.sortedModes)
-                SettingsDropdownItem(
-                  value: mode,
-                  label: mode.label,
-                  detail: mode.preferred ? 'preferred' : null,
-                ),
-            ],
-            selected: edit.selectedMode,
-            onSelected: (mode) =>
-                onEditChanged(edit.copyWith(selectedMode: mode)),
+    return SettingsSection(
+      label: head.name,
+      children: [
+        if (head.description.isNotEmpty)
+          SettingsRow(
+            label: 'Monitor',
+            control: Text(
+              head.description,
+              style: TextStyle(
+                fontSize: ShellFontSizes.secondary,
+                fontFamily: theme.fontFamily,
+                color: theme.popupForeground.withValues(alpha: 0.75),
+              ),
+            ),
           ),
-          const SizedBox(height: 14),
-          _buildLabel('Scale', theme),
-          const SizedBox(height: 6),
-          SettingsChoice<double>(
-            options: scales,
-            value: scale,
-            labelOf: (s) => '${(s * 100).round() / 100}×',
-            onChanged: (s) => onEditChanged(edit.copyWith(scale: s)),
+        SettingsRow(
+          label: 'Enabled',
+          control: SettingsToggle(
+            value: edit.enabled,
+            onChanged: (v) => onEditChanged(edit.copyWith(enabled: v)),
           ),
-          const SizedBox(height: 14),
-          _buildLabel('Rotation', theme),
-          const SizedBox(height: 6),
-          SettingsChoice<int>(
-            options: _transforms.keys.toList(),
-            value: edit.transform,
-            labelOf: (transform) => _transforms[transform]!,
-            onChanged: (transform) =>
-                onEditChanged(edit.copyWith(transform: transform)),
+        ),
+        if (edit.enabled) ...[
+          SettingsRow(
+            label: 'Resolution',
+            control: SettingsDropdown<ZwlrOutputModeV1>(
+              items: [
+                for (final mode in head.sortedModes)
+                  SettingsDropdownItem(
+                    value: mode,
+                    label: mode.label,
+                    detail: mode.preferred ? 'preferred' : null,
+                  ),
+              ],
+              selected: edit.selectedMode,
+              onSelected: (mode) =>
+                  onEditChanged(edit.copyWith(selectedMode: mode)),
+            ),
+          ),
+          SettingsRow(
+            label: 'Scale',
+            control: SettingsChoice<double>(
+              options: scales,
+              value: scale,
+              labelOf: (s) => '${(s * 100).round() / 100}×',
+              onChanged: (s) => onEditChanged(edit.copyWith(scale: s)),
+            ),
+          ),
+          SettingsRow(
+            label: 'Rotation',
+            control: SettingsChoice<int>(
+              options: _transforms.keys.toList(),
+              value: edit.transform,
+              labelOf: (transform) => _transforms[transform]!,
+              onChanged: (transform) =>
+                  onEditChanged(edit.copyWith(transform: transform)),
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  // Not [SettingsSectionLabel]: same style, but that control upper-cases its
-  // text and these labels are title-cased ('Resolution', 'Scale', 'Rotation').
-  Widget _buildLabel(String text, ThemeConfig theme) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 11,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.5),
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.5,
-      ),
+      ],
     );
   }
 }
