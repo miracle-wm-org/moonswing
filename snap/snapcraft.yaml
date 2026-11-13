@@ -1,6 +1,7 @@
 name: moonswing
 base: core22
-version: '0.1-nightly'
+# version and grade come from git — see the moonswing part's override-pull.
+adopt-info: moonswing
 summary: The shell of your dreams, built with Flutter
 description: |
   Moonswing renders Wayland layer-shell panels (taskbars), a wallpaper,
@@ -16,7 +17,6 @@ description: |
   One thing a snap cannot install for you: the PAM service file.
   `/etc/pam.d/moonswing` needs root, so the lock screen falls back to the
   system `login` service — it still authenticates.
-grade: devel
 confinement: classic
 platforms:
   amd64:
@@ -80,6 +80,32 @@ parts:
              "${CRAFT_PART_SRC}/.dart_tool" \
              "${CRAFT_PART_SRC}/linux/flutter/ephemeral" \
              "${CRAFT_PART_SRC}/.flutter-plugins-dependencies"
+      # The version and grade are the store channel's to decide, and the
+      # channel is decided by what was pushed: .github/workflows/snap.yml sends
+      # a `v*` tag to stable and every commit on main to edge. So a commit a
+      # `v*` tag points at is that release (`v1.2.0` is 1.2.0, grade stable —
+      # the store refuses a devel grade on stable), and anything else is the
+      # last release plus how far past it (1.2.0+git14.1a2b3c4d, devel). With no
+      # release tag yet, 0.1 stands in for one.
+      #
+      # Read from the project dir, not CRAFT_PART_SRC: whether a local source's
+      # copy carries .git is not something to rely on. safe.directory because
+      # inside the LXD build instance the mount is owned by another uid, and
+      # git refuses a repository it does not own. A tree with no git at all (a
+      # tarball) still builds, as 0.1+unknown.
+      git_() { git -c safe.directory='*' -C "${CRAFT_PROJECT_DIR}" "$@"; }
+      if tag=$(git_ describe --tags --exact-match --match 'v[0-9]*' HEAD 2>/dev/null); then
+        craftctl set version="${tag#v}"
+        craftctl set grade=stable
+      elif sha=$(git_ rev-parse --short=8 HEAD 2>/dev/null); then
+        base=$(git_ describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || echo v0.1)
+        count=$(git_ rev-list --count "${base}..HEAD" 2>/dev/null || git_ rev-list --count HEAD)
+        craftctl set version="${base#v}+git${count}.${sha}"
+        craftctl set grade=devel
+      else
+        craftctl set version=0.1+unknown
+        craftctl set grade=devel
+      fi
     override-build: |
       # An explicit list, not a wildcard: flutter-distro lives under
       # CRAFT_PART_BUILD too and is deliberately persisted across builds by the
@@ -119,6 +145,9 @@ parts:
       flutter config --enable-windowing
       craftctl default
     build-packages:
+      # override-pull reads the version from git. Named here rather than left
+      # to the flutter plugin's own list, which is free to change.
+      - git
       - libgtk-3-dev
       - libgtk-layer-shell-dev
       - libasound2-dev
