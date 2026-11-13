@@ -110,7 +110,8 @@ int barDropPosition({
 /// its element as it moves. [onReorder] is told the new order once, on the
 /// drop, as `order[i]` = the index in [children] of what now goes i-th; it is
 /// not called for a drag that left everything where it was. Null makes the
-/// section a plain [BarModuleRow].
+/// section a plain [BarModuleRow]. A module with nothing beside it to change
+/// places with is never dragged: its press is only ever a click.
 class ReorderableBarSection extends StatefulWidget {
   const ReorderableBarSection({
     super.key,
@@ -182,7 +183,7 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
   }
 
   void _onDown(int index, PointerDownEvent event) {
-    if (widget.onReorder == null) return;
+    if (widget.onReorder == null || widget.children.length < 2) return;
     if (event.buttons & kPrimaryButton == 0) return;
     if (_pointer != null) return;
     BarDragClaim._reset();
@@ -204,7 +205,12 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
           barModuleDragSlop(event.kind)) {
         return;
       }
-      if (!_begin()) return;
+      if (!_begin()) {
+        // Nowhere for it to go: the press stays the click it already was.
+        _pointer = null;
+        _pressed = null;
+        return;
+      }
     }
     final row = _row;
     if (row == null) return;
@@ -235,6 +241,13 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
   }
 
   /// Turns the press into a drag, or says it cannot be one.
+  ///
+  /// It cannot be one when nothing else in the section drew anything — a
+  /// module alone in it, as the default bar's clock is, or beside only empty
+  /// ones — since there is no order to change. Such a press is left the click
+  /// it already was: the drag would only have dismissed what the press opened
+  /// (the clock's full-screen overview, a frame or two after it was created)
+  /// and rebuilt the section on every move to hold the module where it was.
   bool _begin() {
     final row = _row;
     final pressed = _pressed;
@@ -247,6 +260,11 @@ class _ReorderableBarSectionState extends State<ReorderableBarSection> {
       child = row.childAfter(child);
       i++;
     }
+    var others = false;
+    for (var j = 0; j < extents.length; j++) {
+      if (j != pressed && extents[j] > 0) others = true;
+    }
+    if (!others) return false;
     final order = List<int>.generate(extents.length, (i) => i);
     final slot = barSlotStart(extents, pressed, widget.gap);
     _extents = extents;
