@@ -264,16 +264,15 @@ silenced = "yes"
   });
 
   group('the panel row', () {
-    testWidgets('says what silencing does, and what it does not',
+    testWidgets('is the label and the switch, with no subtext',
         (tester) async {
       await tester.pumpWidget(_row());
       expect(find.text('Silence notifications'), findsOneWidget);
-      expect(find.textContaining('announce themselves'), findsOneWidget);
+      expect(find.textContaining('announce themselves'), findsNothing);
 
       store.setSilenced(true);
       await tester.pump();
-      // The sentence a user needs before flipping a switch called "silence".
-      expect(find.textContaining('Nothing is lost'), findsOneWidget);
+      expect(find.textContaining('Nothing is lost'), findsNothing);
     });
 
     testWidgets('the switch follows the store both ways', (tester) async {

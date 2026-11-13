@@ -4,8 +4,8 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   media_kit_libs_linux
-  volume_controller
   media_kit_video
+  volume_controller
   xdg_icons
 )
 

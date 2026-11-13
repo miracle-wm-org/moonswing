@@ -488,8 +488,6 @@ class _NotificationPanelState extends State<NotificationPanel> {
             NotificationDaemonBanner(theme: theme),
             Container(height: 1, color: theme.divider),
           ],
-          NotificationSilenceRow(theme: theme),
-          Container(height: 1, color: theme.divider),
           Expanded(
             child: items.isEmpty
                 ? const DockedPanelEmpty(
@@ -503,9 +501,11 @@ class _NotificationPanelState extends State<NotificationPanel> {
                   )
                 : _buildList(items),
           ),
-          // At the foot, out of the way of the list: it is a setting checked
-          // now and then, not something read on every opening the way the
-          // notifications are.
+          // At the foot, out of the way of the list: they are settings
+          // checked now and then, not something read on every opening the way
+          // the notifications are.
+          Container(height: 1, color: theme.divider),
+          NotificationSilenceRow(theme: theme),
           Container(height: 1, color: theme.divider),
           NotificationSoundRow(theme: theme),
         ],
@@ -513,13 +513,9 @@ class _NotificationPanelState extends State<NotificationPanel> {
     );
   }
 
-  /// The header: what this panel is, how much is in it, and the ways to act on
-  /// all of it.
-  ///
-  /// The two acts are deliberately not the same weight. Marking everything read
-  /// is reversible in the only sense that matters — nothing is removed — so it
-  /// is an icon; "Clear all" destroys every item on the list, so it keeps its
-  /// border and its word.
+  /// The header: what this panel is, how much is in it, and the one act on all
+  /// of it — marking everything read. Nothing on the panel empties the list in
+  /// one press; a card goes by its own ✕.
   Widget _buildHeader(ThemeConfig theme, int count) {
     final store = NotificationStore.instance;
     final unread = store.unreadCount;
@@ -528,11 +524,9 @@ class _NotificationPanelState extends State<NotificationPanel> {
       summary: _countLabel(count, unread),
       onClose: _close,
       actions: [
-        if (count > 0)
-          DockedPanelTextButton(label: 'Clear all', onTap: store.dismissAll),
         // Only when there is something to mark. A permanently-present button
         // that does nothing on most presses is how a user learns not to trust
-        // the pair of them.
+        // it.
         if (unread > 0)
           SettingsIconButton(
             icon: ShellGlyph.checkDouble,
@@ -551,8 +545,9 @@ class _NotificationPanelState extends State<NotificationPanel> {
   /// Both numbers, because they answer different questions and the check-all
   /// button makes them come apart: "4 notifications" over a panel the user has
   /// just silenced the count on would read as the button not having worked.
-  static String _countLabel(int count, int unread) {
-    if (count == 0) return 'Nothing waiting';
+  /// None at all over an empty list, which the empty state already says.
+  static String? _countLabel(int count, int unread) {
+    if (count == 0) return null;
     final total = count == 1 ? '1 notification' : '$count notifications';
     if (unread == 0) return '$total, all read';
     if (unread == count) return total;
@@ -579,10 +574,8 @@ class _NotificationPanelState extends State<NotificationPanel> {
 /// The panel's "do not disturb" switch — the discoverable half of the pair the
 /// bell's right-click is the quick half of.
 ///
-/// It sits under the header rather than in it, with a sentence saying what
-/// silencing *does not* do: the one thing a user has to know before flipping a
-/// switch called "silence" is whether the notifications it silences are lost,
-/// and the answer is that they are all still here.
+/// It sits at the foot of the panel, above the sound it silences, rather than
+/// over the list: a setting checked now and then, not read on every opening.
 ///
 /// Rebuilt by `_NotificationPanelState`'s store listener, like
 /// [NotificationDaemonBanner] and for the same reason — the flag it renders and
@@ -621,30 +614,12 @@ class NotificationSilenceRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Silence notifications',
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.body,
-                        color: theme.popupForeground,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      silenced
-                          ? 'New notifications wait here quietly. '
-                              'Nothing is lost.'
-                          : 'New notifications announce themselves as they '
-                              'arrive.',
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.secondary,
-                        height: 1.35,
-                        color: theme.popupForeground.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'Silence notifications',
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.body,
+                    color: theme.popupForeground,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -966,8 +941,8 @@ class _NotificationCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The meta row, the clipboard card's: who sent it, and the one button
-        // that acts on the card rather than through it.
+        // The meta row, the clipboard card's: who sent it, and the buttons
+        // that act on the card rather than through it.
         SizedBox(
           height: ShellSizes.iconButton,
           child: Row(
@@ -998,6 +973,16 @@ class _NotificationCard extends StatelessWidget {
                   ),
                 ),
               ),
+              // Marks this one read, the card's half of the header's ✓✓. Only
+              // while there is something to mark, in the badge's colour like the
+              // dot it takes away.
+              if (!item.read)
+                SettingsIconButton(
+                  icon: ShellGlyph.check,
+                  size: ShellFontSizes.caption,
+                  color: theme.notificationBadge,
+                  onTap: () => NotificationStore.instance.markRead(item.id),
+                ),
               SettingsIconButton(
                 icon: ShellGlyph.close,
                 size: ShellFontSizes.caption,
@@ -1049,8 +1034,8 @@ class _NotificationCard extends StatelessWidget {
 
 /// One of a notification's own actions, as a real button.
 ///
-/// The accent's own tint at two strengths, like "Clear all" and every other
-/// accent-lettered chip in the shell. The resting fill used to be
+/// The accent's own tint at two strengths, like every other accent-lettered
+/// chip in the shell. The resting fill used to be
 /// `surface_hover`, which in the shipped palette is exactly the accent this
 /// label is drawn in — the action read as a blank slab until the pointer
 /// reached it.

@@ -594,8 +594,9 @@ coloured by the first ticker's move.
 A bell that shakes and shows a count when a notification arrives, and opens the
 **notification panel** on click: a panel docked against the right edge of the
 screen whose bar you clicked (or the left — see `side`), listing what has
-arrived with each notification's actions, a **mark everything read** button and
-a **Clear all**. The shell is the desktop's notification daemon, so this is where
+arrived with each notification's actions and a **✓** to mark it read, a **mark
+everything read** button at the top, and the silence switch and notification
+sound at the foot. The shell is the desktop's notification daemon, so this is where
 notifications from every application land.
 
 The panel is built like the [clipboard history](#clipboard) and behaves like it.
@@ -676,11 +677,11 @@ being pushed between them.
 
 #### Read, and dismissed
 
-The panel's two clearing buttons are not the same act. The **✓✓** button marks
-everything read: nothing is removed, the messages stay on the list to be read
-again, and what stops is the shell *asking* — the bell's count, the floating
-card in the corner of every output, and the chime. **Clear all** empties the
-list.
+Marking read is not dismissing. A card's **✓**, or the header's **✓✓** for all
+of them, marks it read: nothing is removed, the messages stay on the list to be
+read again, and what stops is the shell *asking* — the bell's count, the
+floating card in the corner of every output, and the chime. A card's **✕**
+takes it off the list.
 
 Opening the panel does not mark anything read. Reading a notification is
 something you do, not something a window being mapped does for you.
@@ -2277,7 +2278,7 @@ refresh_minutes = 5
 
 ## Notifications
 
-The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — *Silence notifications* in the bell's right-click menu, or the switch at the top of the notification panel — so it is documented because the file is yours to edit, not because you have to.
+The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — *Silence notifications* in the bell's right-click menu, or the switch at the foot of the notification panel — so it is documented because the file is yours to edit, not because you have to.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
