@@ -549,7 +549,9 @@ class DockedPanelHeader extends StatelessWidget {
   });
 
   final String title;
-  final String summary;
+
+  /// The line under the title; none at all when null.
+  final String? summary;
   final VoidCallback onClose;
 
   /// Between the title and the close button — a [DockedPanelTextButton] or an
@@ -575,14 +577,16 @@ class DockedPanelHeader extends StatelessWidget {
                     color: theme.popupForeground,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  summary,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    color: theme.popupForeground.withValues(alpha: 0.6),
+                if (summary case final summary?) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    summary,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.secondary,
+                      color: theme.popupForeground.withValues(alpha: 0.6),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

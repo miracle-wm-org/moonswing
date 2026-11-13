@@ -15,7 +15,7 @@ Finder _glyph(ShellGlyph icon) => findGlyph(icon);
 /// Read and dismissed are different acts, and the whole of this file is about
 /// keeping them different: marking everything read stops the shell *asking*
 /// about a notification without removing it, which is what makes it something
-/// other than a second Clear all.
+/// other than dismissing it.
 void main() {
   final store = NotificationStore.instance;
 
@@ -56,7 +56,7 @@ void main() {
       expect(store.unreadCount, 0);
       expect(store.hasUnread, isFalse);
       // The point of the button: nothing is gone, so the panel still has
-      // something to show and Clear all still has something to do.
+      // something to show.
       expect(store.items, hasLength(2));
       expect(store.items.every((item) => item.read), isTrue);
     });
@@ -147,8 +147,36 @@ void main() {
       // And the button goes with the thing it acted on: a control that stays
       // and does nothing is how a user learns not to trust it.
       expect(check, findsNothing);
-      // The list did not: Clear all is the button that empties it.
-      expect(find.text('Clear all'), findsOneWidget);
+      // And nothing in the header empties the list.
+      expect(find.text('Clear all'), findsNothing);
+    });
+
+    testWidgets('each card has a check that marks that one read',
+        (tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+      seed(summary: 'First');
+      final second = seed(summary: 'Second');
+
+      await tester.pumpWidget(panel(closing));
+      await tester.pumpAndSettle();
+
+      final checks = _glyph(ShellGlyph.check);
+      expect(checks, findsNWidgets(2));
+
+      // Newest first, so the first check is the second notification's.
+      final card = find.ancestor(
+        of: find.text('Second'),
+        matching: find.byType(RepaintBoundary),
+      );
+      await tester.tap(find.descendant(of: card.first, matching: checks));
+      await tester.pumpAndSettle();
+
+      expect(store.items.firstWhere((item) => item.id == second).read, isTrue);
+      expect(store.unreadCount, 1);
+      // The check goes with the unread state it took away; the card stays.
+      expect(checks, findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
     });
 
     testWidgets('the way out is the close button in the header',

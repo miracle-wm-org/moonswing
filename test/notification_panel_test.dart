@@ -282,7 +282,8 @@ void main() {
       await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
       await tester.pumpAndSettle();
       expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('Nothing waiting'), findsOneWidget);
+      // No count line over an empty list: the empty state already says it.
+      expect(find.text('Nothing waiting'), findsNothing);
 
       store.addOrReplace(NotificationItem(
         id: store.allocateId(),
@@ -314,7 +315,7 @@ void main() {
         find.textContaining('appear here', findRichText: true),
         findsOneWidget,
       );
-      // Nothing to clear, so nothing offering to.
+      // Nothing on the panel empties the list in one press.
       expect(find.text('Clear all'), findsNothing);
     });
   });
@@ -366,27 +367,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expectTint(tester, 'Reply');
-    });
-
-    testWidgets('so is a hovered "Clear all"', (tester) async {
-      store.addOrReplace(NotificationItem(
-        id: store.allocateId(),
-        appName: 'Mail',
-        summary: 'Hello',
-        body: '',
-        actions: const [],
-        expireTimeout: 0,
-        arrivedAt: DateTime(2026, 1, 1),
-      ));
-      await pumpPanel(tester);
-
-      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await gesture.addPointer(location: Offset.zero);
-      addTearDown(gesture.removePointer);
-      await gesture.moveTo(tester.getCenter(find.text('Clear all')));
-      await tester.pumpAndSettle();
-
-      expectTint(tester, 'Clear all');
     });
   });
 }

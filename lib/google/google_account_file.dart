@@ -84,6 +84,9 @@ class GoogleAccountFile {
 
   String get path => '$directory/google-account.json';
 
+  /// Numbers each write's temporary file. See [write].
+  static int _writes = 0;
+
   static String _defaultDirectory() {
     final env = Platform.environment;
     final state = env['XDG_STATE_HOME'];
@@ -125,25 +128,33 @@ class GoogleAccountFile {
   /// Saves [accounts]. Returns whether it landed; a false answer is not
   /// fatal — the session keeps what it holds — but the caller says so.
   Future<bool> write(List<GoogleAccountData> accounts) async {
+    // Written beside the file and renamed over it, never rewritten in place: a
+    // rewrite empties the file first, and a read in that gap (or a crash
+    // leaving it there) would find every grant gone. One per write, so two
+    // saves in flight cannot rename each other's half-written copy into place.
+    final temp = File('$path.$pid-${_writes++}.tmp');
     try {
       final dir = Directory(directory);
       if (!await dir.exists()) await dir.create(recursive: true);
       // Narrowed before the file is created inside it, so the grant is never
       // world-readable for even an instant.
       chmodPath(directory, 0x1C0); // 0700
-      final file = File(path);
       // Created empty and narrowed before anything secret is written into it.
-      if (!await file.exists()) await file.create();
-      chmodPath(path, 0x180); // 0600
+      await temp.create();
+      chmodPath(temp.path, 0x180); // 0600
       final json = {
         'accounts': [
           for (final a in accounts)
             if (a.refreshToken != null) a.toJson(),
         ],
       };
-      await file.writeAsString('${jsonEncode(json)}\n', flush: true);
+      await temp.writeAsString('${jsonEncode(json)}\n', flush: true);
+      await temp.rename(path);
       return true;
     } catch (_) {
+      try {
+        if (await temp.exists()) await temp.delete();
+      } catch (_) {}
       return false;
     }
   }

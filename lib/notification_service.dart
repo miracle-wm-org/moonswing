@@ -138,8 +138,8 @@ class NotificationStore extends ChangeNotifier {
   /// something the user does, not something a window being mapped does for
   /// them, and a panel that silently cleared the count as it slid in would
   /// leave a user who opened it by accident with no way of knowing what had
-  /// arrived. Nothing is removed: the list is still there to be read, and
-  /// [dismissAll] is the button that empties it.
+  /// arrived. Nothing is removed: the list is still there to be read, and a
+  /// card's own ✕ is what takes it off.
   ///
   /// A no-op when nothing moves, so a second press costs no notification.
   void markAllRead() {
