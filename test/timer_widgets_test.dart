@@ -1,13 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/timers/quick_timers.dart';
 import 'package:moonswing/timers/timer_sound.dart';
 import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/timers/timer_widgets.dart';
@@ -49,11 +53,21 @@ Finder _icon(ShellGlyph icon) => findGlyph(icon);
 Widget _composer(
   TimersStore store, {
   TimerSoundStore? sound,
+  ConfigStore? config,
   ValueChanged<int>? onStarted,
 }) => _host(
-  TimerComposer(store: store, sound: sound, onStarted: onStarted),
-  size: const Size(240, 160),
+  TimerComposer(
+    store: store,
+    sound: sound,
+    config: config,
+    onStarted: onStarted,
+  ),
+  size: const Size(264, 320),
 );
+
+/// The composer's duration field, then its name field.
+Finder get _durationField => find.byType(EditableText).first;
+Finder get _nameField => find.byType(EditableText).last;
 
 /// The bar popup, which is where [TimerRow] is drawn.
 Widget _popup(TimersStore store) =>
@@ -126,13 +140,13 @@ void main() {
       await tester.pumpWidget(_composer(store));
 
       // Inert while what is in the field does not parse.
-      await tester.enterText(find.byType(EditableText), 'soon');
+      await tester.enterText(_durationField, 'soon');
       await tester.pump();
       await tester.tap(find.text('Start timer'));
       await tester.pump();
       expect(store.isEmpty, isTrue);
 
-      await tester.enterText(find.byType(EditableText), '2:30');
+      await tester.enterText(_durationField, '2:30');
       await tester.pump();
       await tester.tap(find.text('Start timer'));
       await tester.pump();
@@ -141,9 +155,124 @@ void main() {
       // The field goes back to the default rather than being emptied, so the
       // next timer is one click away too.
       expect(
-        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        tester.widget<EditableText>(_durationField).controller.text,
         kDefaultTimerDuration,
       );
+    });
+
+    testWidgets('a typed name labels the timer it starts', (tester) async {
+      final store = _store();
+      addTearDown(store.dispose);
+      await tester.pumpWidget(_composer(store));
+
+      await tester.enterText(_nameField, '  Tea ');
+      await tester.pump();
+      await tester.tap(find.text('Start timer'));
+      await tester.pump();
+
+      expect(store.entries.single.label, 'Tea');
+      expect(timerSubtitle(store.entries.single), 'Tea · 05:00');
+      expect(tester.widget<EditableText>(_nameField).controller.text, isEmpty);
+    });
+
+    testWidgets('offers no quick timers without a config to keep them in', (
+      tester,
+    ) async {
+      final store = _store();
+      addTearDown(store.dispose);
+      await tester.pumpWidget(_composer(store));
+      expect(find.text('Save as quick timer'), findsNothing);
+      expect(find.text('Quick timers'), findsNothing);
+    });
+
+    group('quick timers', () {
+      late Directory tempDir;
+      late ConfigStore config;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp('quick_timers_widget');
+        final path = '${tempDir.path}/config.toml';
+        await File(path).writeAsString('''
+[[modules.clock.quick_timers]]
+name = "Tea"
+duration = "3m"
+''');
+        config = await ConfigStore.loadFrom(path);
+      });
+
+      tearDown(() async {
+        config.dispose();
+        if (await tempDir.exists()) await tempDir.delete(recursive: true);
+      });
+
+      testWidgets('a chip starts its timer, named, in one click', (
+        tester,
+      ) async {
+        final store = _store();
+        addTearDown(store.dispose);
+        final started = <int>[];
+        await tester.pumpWidget(
+          _composer(store, config: config, onStarted: started.add),
+        );
+
+        expect(find.text('Quick timers'), findsOneWidget);
+        await tester.tap(find.text('Tea'));
+        await tester.pump();
+
+        final entry = store.entries.single;
+        expect(entry.label, 'Tea');
+        expect(entry.total, const Duration(minutes: 3));
+        expect(started, [entry.id]);
+      });
+
+      testWidgets('saving keeps the name and length as a new chip', (
+        tester,
+      ) async {
+        final store = _store();
+        addTearDown(store.dispose);
+        await tester.pumpWidget(_composer(store, config: config));
+
+        // A quick timer is found by its name, so it cannot be saved unnamed.
+        await tester.tap(find.text('Save as quick timer'));
+        await tester.pump();
+        expect(QuickTimerBook(config).timers, hasLength(1));
+
+        await tester.enterText(_durationField, '10');
+        await tester.enterText(_nameField, 'Pasta');
+        await tester.pump();
+        await tester.tap(find.text('Save as quick timer'));
+        await tester.pump();
+
+        expect(
+          QuickTimerBook(config).timers.map((t) => (t.name, t.duration)),
+          [
+            ('Tea', const Duration(minutes: 3)),
+            ('Pasta', const Duration(minutes: 10)),
+          ],
+        );
+        expect(find.text('Pasta'), findsOneWidget);
+        // Saving starts nothing: it is putting a timer by for later.
+        expect(store.isEmpty, isTrue);
+        // Lets the config's debounced write fire so no timer outlives the test.
+        await tester.pump(const Duration(milliseconds: 500));
+      });
+
+      testWidgets('the × forgets a quick timer and starts nothing', (
+        tester,
+      ) async {
+        final store = _store();
+        addTearDown(store.dispose);
+        await tester.pumpWidget(_composer(store, config: config));
+
+        await tester.tap(_icon(ShellGlyph.close));
+        await tester.pump();
+
+        expect(QuickTimerBook(config).timers, isEmpty);
+        expect(config.get<Object>(kQuickTimersPath), isNull);
+        expect(find.text('Tea'), findsNothing);
+        expect(store.isEmpty, isTrue);
+        await tester.pump(const Duration(milliseconds: 500));
+      });
     });
   });
 

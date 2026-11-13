@@ -133,14 +133,14 @@ void main() {
     final start = find.text('Start timer');
     expect(start, findsOneWidget);
     // The field has the keyboard, so a length is typed straight in.
-    final editable = tester.widget<EditableText>(find.byType(EditableText));
+    final editable = tester.widget<EditableText>(find.byType(EditableText).first);
     expect(editable.focusNode.hasFocus, isTrue);
     expect(
-      tester.getTopLeft(find.byType(EditableText)).dy,
+      tester.getTopLeft(find.byType(EditableText).first).dy,
       greaterThan(button.bottom),
     );
 
-    await tester.enterText(find.byType(EditableText), '2:30');
+    await tester.enterText(find.byType(EditableText).first, '2:30');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     await tester.pump();

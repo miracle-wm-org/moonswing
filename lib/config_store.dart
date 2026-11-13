@@ -47,6 +47,11 @@ class ConfigStore extends ChangeNotifier {
     return store;
   }
 
+  /// The shared singleton, or null before [initShared] — for a widget that
+  /// has something to offer from the config but is also drawn by tests that
+  /// never load one.
+  static ConfigStore? get maybeInstance => _shared;
+
   /// Loads the shared singleton from the real config path. Idempotent — a
   /// second call returns the already-loaded store. Call once from `main()`.
   static Future<ConfigStore> initShared() async =>

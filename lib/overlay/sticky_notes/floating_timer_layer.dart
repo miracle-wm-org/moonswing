@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/config_store.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
@@ -49,6 +50,7 @@ class FloatingTimerLayer extends StatefulWidget {
     this.onMenuOpened,
     this.store,
     this.sound,
+    this.config,
   });
 
   static List<Rect> _nothingReserved() => const [];
@@ -79,6 +81,10 @@ class FloatingTimerLayer extends StatefulWidget {
 
   /// Handed to the composer, which renders the alarm's failure.
   final TimerSoundStore? sound;
+
+  /// Handed to the composer, which keeps the quick timers in it; the shell's
+  /// config when null.
+  final ConfigStore? config;
 
   @override
   FloatingTimerLayerState createState() => FloatingTimerLayerState();
@@ -339,6 +345,7 @@ class FloatingTimerLayerState extends State<FloatingTimerLayer> {
       child: TimerComposer(
         store: _store,
         sound: widget.sound,
+        config: widget.config,
         autofocus: true,
         onStarted: (_) => dismissMenu(),
       ),
