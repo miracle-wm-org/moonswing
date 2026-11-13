@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/bar_module_drag.dart';
+import 'package:moonswing/popup_coordinator.dart';
 
 /// A module that counts its own builds of state, so a test can tell a module
 /// that moved from one that was rebuilt from scratch.
@@ -284,6 +285,123 @@ void main() {
       await tester.pump();
       expect(x(tester, 'b'), 88);
       expect(tester.binding.transientCallbackCount, 0);
+    });
+  });
+
+  group('a module with nowhere to go', () {
+    /// A section whose one module opens a registered surface on its way down,
+    /// as the clock opens the overview, beside [empty] modules that drew
+    /// nothing.
+    Future<({List<List<int>> reorders, List<int> dismissed})> pumpAlone(
+      WidgetTester tester, {
+      int empty = 0,
+    }) async {
+      final reorders = <List<int>>[];
+      final dismissed = <int>[];
+      final ids = ['clock', for (var i = 0; i < empty; i++) 'empty$i'];
+      await tester.pumpWidget(
+        Align(
+          alignment: Alignment.center,
+          child: ReorderableBarSection(
+            axis: Axis.horizontal,
+            ids: ids,
+            onReorder: reorders.add,
+            children: [
+              _Counter(
+                label: 'clock',
+                onTapDown: () {
+                  final handle = PopupCoordinator.instance.open(
+                    owner: Object(),
+                    onDismiss: () => dismissed.add(1),
+                  );
+                  addTearDown(() => PopupCoordinator.instance.close(handle));
+                },
+              ),
+              for (var i = 0; i < empty; i++) const SizedBox.shrink(),
+            ],
+          ),
+        ),
+      );
+      return (reorders: reorders, dismissed: dismissed);
+    }
+
+    Future<void> dragAway(WidgetTester tester) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('clock')),
+        kind: PointerDeviceKind.mouse,
+      );
+      // Well past the slop, and on past the end of the section either way.
+      for (final step in const [
+        Offset(-30, 0),
+        Offset(-200, 0),
+        Offset(400, 0),
+      ]) {
+        await gesture.moveBy(step);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pump();
+    }
+
+    testWidgets('alone in its section, a press stays a click', (tester) async {
+      final result = await pumpAlone(tester);
+      final at = tester.getTopLeft(find.text('clock'));
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('clock')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(-200, 0));
+      await tester.pump();
+      // Not held anywhere, and what the press opened is left open.
+      expect(tester.getTopLeft(find.text('clock')), at);
+      expect(result.dismissed, isEmpty);
+      await gesture.up();
+      await tester.pump();
+      expect(result.reorders, isEmpty);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('beside only empty modules, it does not drag either', (
+      tester,
+    ) async {
+      final result = await pumpAlone(tester, empty: 2);
+      await dragAway(tester);
+      expect(result.dismissed, isEmpty);
+      expect(result.reorders, isEmpty);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a later press beside a real module still drags', (
+      tester,
+    ) async {
+      // The refused press must not leave the pointer claimed.
+      final reorders = <List<int>>[];
+      await tester.pumpWidget(
+        Align(
+          alignment: Alignment.topLeft,
+          child: ReorderableBarSection(
+            axis: Axis.horizontal,
+            ids: const ['a', 'gone', 'b'],
+            onReorder: reorders.add,
+            children: const [
+              _Counter(label: 'a'),
+              SizedBox.shrink(),
+              _Counter(label: 'b'),
+            ],
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        const Offset(20, 10),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(55, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      expect(reorders, [
+        [1, 2, 0],
+      ]);
     });
   });
 }
