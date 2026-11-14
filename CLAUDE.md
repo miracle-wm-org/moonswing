@@ -68,7 +68,8 @@ A **classic** snap, built nightly from `main`. Classic confinement puts the host
 
 Astro + Starlight, published to GitHub Pages by `.github/workflows/website.yml`. `npm run dev`
 in `website/` serves it at `/moonswing/` — the `base`, so **links written as component
-props or hero actions need relative hrefs**; only markdown links get `base` prefixed for them.
+props or hero actions need relative hrefs**, and so do hand-written markdown links: Astro prefixes
+`base` onto nothing. The generated pages prefix it themselves (`BASE` in `scripts/pages.mjs`).
 
 **Nothing about the shell is documented twice.** `scripts/sync.mjs` runs before `dev` and
 `build` and generates the configuration pages by splitting `CONFIG.md` on its `## ` headings,

@@ -61,5 +61,5 @@ every push to `main` that touches the site, `CONFIG.md` or `assets/`. It needs *
 Pages → Source: GitHub Actions** enabled on the repository once.
 
 The site is configured for a project page at `/moonswing/`. Moving it to a custom domain
-is the two constants at the top of [`astro.config.mjs`](astro.config.mjs): set `site` to the
-domain and `base` to `'/'`.
+is `site` in [`astro.config.mjs`](astro.config.mjs) and `BASE` in
+[`scripts/pages.mjs`](scripts/pages.mjs) (set it to `''`).

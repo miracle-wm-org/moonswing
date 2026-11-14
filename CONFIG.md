@@ -1,159 +1,163 @@
 # Moonswing Configuration
 
-Moonswing is configured via a TOML file located at:
+Moonswing reads one TOML file:
 
 ```
-~/.config/moonswing/config.toml
+~/.config/moonswing/config.toml        # or $XDG_CONFIG_HOME/moonswing/config.toml
 ```
 
-If `$XDG_CONFIG_HOME` is set, the config file is read from `$XDG_CONFIG_HOME/moonswing/config.toml` instead.
-
-The panel works out of the box with no configuration file. All settings have sensible defaults that match the standard layout. You only need to create a config file to customize behavior.
-
-If the config file is missing or contains errors, the panel falls back to defaults silently.
+- If the file is missing, the shell writes a default one on first start.
+- A wrongly typed value costs only that key: the default is used instead. Numbers out of range are clamped.
+- A TOML syntax error costs the whole file: the shell logs the error to stderr and runs on defaults.
+- Changes made in Settings (or a right-click menu) apply live and are written back to the file. Settings rewrites the whole file, so comments are not kept.
+- The shell does not watch the file. After editing it by hand, restart the shell, and don't change anything in Settings in between: Settings would overwrite your edit.
 
 ## Panels
 
-The application supports multiple panels, each anchored to a different edge of the screen. Panels are defined under `[panels.<name>]` sections, where `<name>` is an arbitrary identifier (e.g., `top`, `bottom`, `dock`).
-
-Each panel has its own height, padding, anchor position, layer, and module layout.
-
-Every key here is live: adding or removing a panel, or changing its `height`, `anchor` or `layer`, puts the bar on screen, takes it off or moves it as soon as the change is saved, on every monitor, with no restart. A geometry change makes the bar a new window, so a panel briefly disappears and reappears while it moves.
-
-### Example: Single Panel
+Each `[panels.<name>]` table is one bar, shown on every monitor. `<name>` is any identifier (`top`, `bottom`, `dock`, …).
 
 ```toml
 [panels.top]
 height = 32
-padding_horizontal = 40
+padding_horizontal = 8
 anchor = "top"
 layer = "top"
 
 [panels.top.layout]
 left   = ["workspaces"]
-center = ["media_player"]
-right  = ["sound_control", "battery", "weather", "clock"]
-```
-
-### Example: Two Panels (Top and Bottom)
-
-```toml
-[panels.top]
-height = 32
-padding_horizontal = 40
-anchor = "top"
-layer = "top"
-
-[panels.top.layout]
-left   = ["workspaces"]
-center = ["media_player"]
-right  = ["sound_control", "battery", "weather", "clock"]
+center = ["clock"]
+right  = ["sound_control", "battery", "weather", "system"]
 
 [panels.bottom]
 height = 32
-padding_horizontal = 20
+padding_horizontal = 0
 anchor = "bottom"
 layer = "top"
 
 [panels.bottom.layout]
-left   = []
-center = ["clock"]
-right  = ["weather"]
+left   = ["clipboard"]
+center = ["dock"]
+right  = ["media_player", "notifications", "launcher"]
 ```
 
-### Panel Settings
+| Key                  | Type   | Default | Description |
+| -------------------- | ------ | ------- | ----------- |
+| `height`             | int    | `32`    | Thickness in pixels (width, on a left or right bar). Also the space reserved at the screen edge |
+| `padding_horizontal` | int    | `8`     | Space at each end of the bar, in pixels |
+| `anchor`             | string | `"top"` | `"top"`, `"bottom"`, `"left"` or `"right"` |
+| `layer`              | string | `"top"` | Layer-shell layer: `"background"`, `"bottom"`, `"top"` or `"overlay"` |
 
-| Key                  | Type   | Default | Description                                                             |
-| -------------------- | ------ | ------- | ----------------------------------------------------------------------- |
-| `height`             | int    | `32`    | Panel thickness in pixels (height for top/bottom, width for left/right) |
-| `padding_horizontal` | int    | `40`    | Left and right padding in pixels                                        |
-| `anchor`             | string | `"top"` | Screen edge: `"top"`, `"bottom"`, `"left"`, or `"right"`                |
-| `layer`              | string | `"top"` | Layer shell layer: `"background"`, `"bottom"`, `"top"`, or `"overlay"`  |
-
-The `anchor` value determines which edges the panel is attached to:
-
-- `"top"` — anchored to the top, left, and right edges (horizontal bar at top)
-- `"bottom"` — anchored to the bottom, left, and right edges (horizontal bar at bottom)
-- `"left"` — anchored to the left, top, and bottom edges (vertical bar on left)
-- `"right"` — anchored to the right, top, and bottom edges (vertical bar on right)
-
-On a left or right bar every module lays itself out down the bar rather than across it: workspaces, dock icons, tray icons and media buttons are stacked one under the next; a reading that sits beside its icon on a top bar — the volume, brightness and battery percentages, the temperature, a count — sits under it instead, set small enough to fit the bar's width; and running text — the clock, a timer or recording readout, the track title, the network name — is turned on its side so it reads along the bar, with the tops of the letters towards the screen's edge. The left, center and right sections become top, center and bottom.
+- With no `[panels]` table at all, the shell shows one top bar with the [Layout](#layout) defaults.
+- Changes from Settings apply at once on every monitor. Changing `height`, `anchor` or `layer` recreates the bar, so it blinks.
+- On a left or right bar, modules stack down the bar, short readings sit under their icons, and running text (the clock, track titles) is turned on its side. `left`/`center`/`right` become top/middle/bottom.
+- A bar's margin, corner radius and how two bars join are theme keys: see [Floating the bar](#floating-the-bar) and [Where two bars meet](#where-two-bars-meet).
 
 ## Layout
 
-Each panel has a `[panels.<name>.layout]` section that controls which modules appear and where. The panel has three sections arranged horizontally: **left**, **center**, and **right**. The center section expands to fill available space.
+`[panels.<name>.layout]` lists the modules in each of the bar's three sections, in order.
 
 ```toml
 [panels.top.layout]
 left   = ["workspaces"]
-center = ["media_player"]
-right  = ["sound_control", "battery", "weather", "clock"]
+center = ["clock"]
+right  = ["sound_control", "battery", "weather", "system"]
 ```
 
-Each key is an ordered array of module names. Valid module names are:
+| Key      | Type             | Default |
+| -------- | ---------------- | ------- |
+| `left`   | array of strings | `["workspaces"]` |
+| `center` | array of strings | `["media_player"]` |
+| `right`  | array of strings | `["sound_control", "battery", "weather", "clock", "system"]` |
 
-- `"workspaces"` - Workspace switcher, with the icons of what is open on each (requires Miracle WM)
-- `"media_player"` - MPRIS media player controls
-- `"sound_control"` - PulseAudio volume display
-- `"brightness"` - Display backlight level; scroll over it or open its slider to change it (hidden on machines with no backlight)
-- `"battery"` - Battery status monitor
-- `"network"` - Network connectivity (ethernet or WiFi name and IP address)
-- `"quick_settings"` - Quick settings: Wi-Fi and Bluetooth switches, the power mode, the output and input devices and their volumes, and the screen brightness, each with a way through to its full settings page, plus the log out / power off menu (see Quick Settings below)
-- `"weather"` - Weather display
-- `"notifications"` - Notification bell and the notification panel
-- `"clock"` - Date and time, each part switchable; click it for the overview (see Clock below)
-- `"dock"` - Application launcher dock
-- `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
-- `"todo"` - Opens the overview on its todo board, with a count of what is due today
-- `"clipboard"` - Your clipboard history, in a panel docked against one side of the screen
+The defaults apply only when the `layout` table is missing. If it is present, a missing key is an empty section.
 
-A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
+Module names:
 
-**Note:** When a layout section is present, all three keys (`left`, `center`, `right`) should be specified. An omitted key defaults to an empty list, not to the default modules.
+| Name              | What it shows |
+| ----------------- | ------------- |
+| `workspaces`      | Workspace switcher with each workspace's open apps (Miracle WM only) |
+| `media_player`    | MPRIS media controls |
+| `sound_control`   | Volume |
+| `brightness`      | Backlight level; scroll or click to change |
+| `battery`         | Battery status |
+| `network`         | Connection name and IP address |
+| `quick_settings`  | Wi-Fi, Bluetooth, power mode, audio devices, brightness and the power menu |
+| `weather`         | Current weather |
+| `clock`           | Date and time; click for the overview |
+| `dock`            | Pinned applications |
+| `system_monitor`  | CPU, memory and temperature |
+| `system`          | Power button; opens the power menu |
+| `system_tray`     | Tray icons (StatusNotifierItem) |
+| `launcher`        | Opens the application launcher |
+| `screenshot`      | Screenshot an area, a window or a screen |
+| `screen_recorder` | Record an area, a window or a screen |
+| `keyboard_layout` | Current input source; click to switch |
+| `keybinds`        | Opens the overview's Shortcuts tab |
+| `github`          | GitHub notifications |
+| `notifications`   | Notification bell and panel |
+| `scratchpad`      | Shows or hides the scratchpad (Miracle WM only) |
+| `todo`            | Opens the todo board; shows what is due today |
+| `stocks`          | Stock quotes |
+| `clipboard`       | Clipboard history panel |
+
+- A module in no panel is off. A module may appear in several panels.
+- A module with nothing to show on this machine (no battery, no backlight, an empty tray) takes no space.
+- Miracle-only modules are dropped on other compositors.
 
 ### Right-clicking a panel
 
-**Right-click any module** for its menu: a few of its options you can flip in place — the clock's date and seconds, the weather's unit, the clipboard's side, the bell's silence — and below them the way to the settings that configure it: its own page under Settings › Shell › Modules (or the machine's settings it is a view of, such as Sound or Keyboard), and **Panel settings…** for the panel it sits in. The menu stays open while you flip switches, and follows a change made in Settings underneath it. A module with a right-click menu of its own — a workspace, a dock icon — keeps it, with the module's menu added at the bottom.
+- **Right-click a module** for a few quick toggles (the clock's date and seconds, the weather unit, the bell's silence, …), a link to its settings page, **Panel settings…**, **Add module…** (inserts after this one) and **Remove from panel**.
+- **Right-click blank bar** for **Add module to left/center/right…** (whichever third you clicked; top/middle/bottom on a side bar), **Panel settings…** and **Settings…**.
+- **Drag a module** along its section to reorder it. To move it to another section, remove it and add it there. Dragging a dock icon reorders the dock instead.
 
-At the bottom of every module's menu, **Add module…** lists the modules that panel does not have yet and puts the one you pick just after this one, and **Remove from panel** takes this one out of the bar. Both write the panel's `layout` in `config.toml` at once, as Settings › Shell › Panels & Layout would.
-
-**Right-click a panel's blank space** for **Add module to left…** (or *center*, or *right* — whichever third of the bar you clicked; on a side bar, *top*, *middle* or *bottom*), which adds the module you pick to the end of that section, then **Panel settings…**, which opens Settings › Shell › Panels & Layout on that panel's tab, and **Settings…**. Either opens Settings on the screen you clicked.
-
-**Drag a module along its section to move it.** Press on it and drag along the bar: it follows the pointer, the modules it passes slide aside to make room, and letting go settles it into its place and writes the new order. A module stays in its own section — to move one to another section, remove it and add it there. A short wobble is still a click, and a drag never also clicks the module. The dock is the exception: dragging one of its icons reorders the icons, as it always has.
-
-Which options a module's menu offers is the shell's choice, not a config key: the ones that are a switch or a short list, and that you might want to flip without opening Settings.
+All of these write the panel's `layout` immediately.
 
 ## Module Settings
 
-Per-module settings live under `[modules.<name>]`. These are global and shared across all panels.
+Per-module settings live under `[modules.<name>]`. They are global: every panel that carries a module uses the same settings.
 
 ### Weather
 
+The current temperature and conditions. Click for today's details and a daily forecast. Data comes from Open-Meteo; no API key is needed. In the default top panel.
+
 ```toml
 [modules.weather]
-unit = "fahrenheit"
+unit = "celsius"
 refresh_minutes = 30
+location = "Berlin"
+latitude = 52.52
+longitude = 13.41
 ```
 
-| Key               | Type   | Default        | Description                             |
-| ----------------- | ------ | -------------- | --------------------------------------- |
-| `unit`            | string | `"fahrenheit"` | `"celsius"` or `"fahrenheit"`           |
-| `refresh_minutes` | int    | `30`           | How often to re-fetch weather (minutes) |
+| Key               | Type   | Default        | Description                                             |
+| ----------------- | ------ | -------------- | ------------------------------------------------------- |
+| `unit`            | string | `"fahrenheit"` | `"celsius"` or `"fahrenheit"`; anything else is fahrenheit |
+| `refresh_minutes` | int    | `30`           | How often to re-fetch (1–1440)                          |
+| `location`        | string | `""`           | Display name for the place                              |
+| `latitude`        | float  | none           | -90 to 90                                               |
+| `longitude`       | float  | none           | -180 to 180                                             |
+
+- With no `latitude`/`longitude` (or only one of them, or one out of range), the location is detected from your IP address via ipapi.co.
+- Settings › Shell › Modules › Weather searches for a place by name and writes all three location keys.
 
 ### Battery
 
-The bar shows the charge level. Clicking it opens a popup with the time remaining (or until full), the current power draw, and each battery's health, cycle count, chemistry and model, where the firmware reports them.
+The charge level. Click for time remaining (or until full), power draw, and each battery's health, cycle count, technology and model where the firmware reports them. Takes no room on a machine with no battery. In the default top panel.
 
 ```toml
 [modules.battery]
 poll_seconds = 30
 ```
 
-| Key            | Type | Default | Description                                   |
-| -------------- | ---- | ------- | --------------------------------------------- |
-| `poll_seconds` | int  | `30`    | Polling interval for battery status (seconds) |
+| Key            | Type | Default | Description                         |
+| -------------- | ---- | ------- | ----------------------------------- |
+| `poll_seconds` | int  | `30`    | How often to re-read the battery    |
+
+Plugging in or unplugging is picked up at once through udev; the poll covers the slow drift in between.
 
 ### Clock
+
+The date and time, in the centre of the default top panel. Clicking it opens the overview. It is also where the shell's timers live.
 
 ```toml
 [modules.clock]
@@ -172,108 +176,54 @@ name = "Tea"
 duration = "3m"
 ```
 
-| Key                | Type   | Default  | Description                                                   |
-| ------------------ | ------ | -------- | ------------------------------------------------------------- |
-| `show_weekday`     | bool   | `false`  | The day's name, `Mon`                                         |
-| `show_date`        | bool   | `true`   | The month and day of the month, `Nov 2`                       |
-| `show_year`        | bool   | `false`  | The year, `2026`                                              |
-| `show_week_number` | bool   | `false`  | The ISO 8601 week of the year, `W45`                          |
-| `show_time`        | bool   | `true`   | The hour and minute                                           |
-| `show_seconds`     | bool   | `false`  | Seconds on the time; nothing while `show_time` is off         |
-| `hour_format`      | string | `"24"`   | `"24"` for `14:05`, `"12"` for `2:05 PM`                      |
-| `timer_sound`      | string | `"ding"` | What rings when a countdown reaches zero — see below.         |
-| `timer_volume`     | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.                      |
-| `quick_timers`     | array  | none     | Named countdowns started in one click — see [Quick timers](#quick-timers). |
+| Key                | Type   | Default  | Description                                        |
+| ------------------ | ------ | -------- | -------------------------------------------------- |
+| `show_weekday`     | bool   | `false`  | Day name, `Mon`                                    |
+| `show_date`        | bool   | `true`   | Month and day, `Nov 2`                             |
+| `show_year`        | bool   | `false`  | Year, `2026`                                       |
+| `show_week_number` | bool   | `false`  | ISO 8601 week, `W45`                               |
+| `show_time`        | bool   | `true`   | Hour and minute                                    |
+| `show_seconds`     | bool   | `false`  | Seconds; ignored while `show_time` is off          |
+| `hour_format`      | string | `"24"`   | `"24"` (`14:05`) or `"12"` (`2:05 PM`)             |
+| `timer_sound`      | string | `"ding"` | What a finished countdown rings — see below        |
+| `timer_volume`     | float  | `0.7`    | Alarm volume, 0–1                                  |
+| `quick_timers`     | array  | none     | One-click countdowns — see [Quick timers](#quick-timers) |
 
-The parts that are on are shown in that order — weekday, date, year, week,
-time — so with all of them on the bar reads `Mon Nov 2 2026 W45 14:05:09`. Any
-of them can be switched off, Settings › Shell › Modules › Clock has a switch for
-each, and an edit shows at once. With every part off the bar shows a clock icon
-instead, because the clock is how the overview is opened and an empty button
-would be nothing to click.
+- Parts are shown in table order: with all on, `Mon Nov 2 2026 W45 14:05:09`.
+- With every part off, the bar shows a clock icon so there is still something to click.
+- Edits apply at once. Settings › Shell › Modules › Clock has a switch for each part.
 
 #### The overview
 
-Clicking the date and time opens the **overview**: one panel with a tab each for
-the **Calendar**, the system **Monitor**, **System Info**, **Settings**, the
-**Kanban** board and the keyboard **Shortcuts**. The todo button and the keyboard
-icon open the same panel on their own tab rather than a screen of their own, so
-it is the one place all of them live. The panel opens on the screen whose bar
-was clicked.
+Clicking the clock opens the **overview** on the clicked bar's screen: one panel with tabs for **Calendar**, **Settings**, **Monitor**, **System Info**, **Kanban**, **Code** and **Shortcuts**. The todo and keyboard-shortcut buttons open the same panel on their own tab.
 
-A press of one of those three buttons switches an open overview to its tab, or
-closes it if that tab is already showing. **Escape** or the **✕** closes it.
+- Pressing a button whose tab is showing closes the overview; pressing another switches tab.
+- **Escape** or **✕** closes it.
+- Drag the tab strip to move the panel. It stays there until the shell restarts. It cannot be resized.
 
-Drag the strip of tabs to move the panel; it stays where you leave it the next
-time it opens, until the shell restarts. It cannot be resized.
+#### Timers
 
-#### When a timer is up
+Start a timer from the hourglass or stopwatch button in the overview's top-left corner. Running timers float around the overview panel as cards: drag one anywhere, or right-click it to pause, resume, reset or remove it. While one runs, its readout also appears beside the clock in the bar; click it to pause or stop timers.
 
-The shell's timers live behind the clock: the readout appears beside the time
-while one runs, the popup under it pauses and stops them, and the overview the
-clock opens is where one is started — the hourglass and stopwatch buttons in its
-top-left corner, beside the sticky-note button. Each timer then floats around
-the overview's panel as a card you can drag anywhere, and right-clicking one
-pauses, resumes, resets or removes it. So the keys that decide what a finished
-countdown sounds like are `[modules.clock]` keys.
+When a countdown reaches zero it:
 
-A countdown reaching zero does two things, and it does both every time:
+1. **Rings** `timer_sound`. Several finishing at once ring once.
+2. **Posts a notification** — *Timer finished* — that stays until you dismiss it. It never plays the [notification chime](#notifications), so `timer_sound = "none"` gives a silent, notified timer.
 
-1. **It rings.** `timer_sound` is the alarm, and it is what reaches somebody who
-   has walked away from the screen — which is most of the point of setting a
-   timer.
-2. **It posts a notification.** *Timer finished*, with the length that ran out,
-   and no timeout on it: it stays on the notification panel until you dismiss
-   it. A sound that has already played tells somebody who missed it nothing, so
-   the notification is what is still there when they come back.
+`timer_sound` accepts:
 
-The notification deliberately does **not** also play the [notification
-chime](#notifications), whatever that is set to — the timer has already made its
-own noise, and answering one event with two sounds a frame apart is not an
-announcement, it is a collision. Setting `timer_sound = "none"` means a finished
-timer is silent and notified, not silent and chimed.
+- **A shipped alarm**: `ding` (one strike), `ding-dong` (two falling notes), `alarm` (two bursts of three tones), `gong` (one low strike, long tail). Synthesised on first use into `~/.cache/moonswing/sounds/`.
+- **`none`**, `off` or `silent`: no sound.
+- **A path**: anything with a `/` (or a leading `~`), in any format mpv plays.
+- **A sound-theme name**, looked up like the [notification chime](#notifications): `"complete"` finds `/usr/share/sounds/freedesktop/stereo/complete.oga`.
 
-`timer_sound` takes four kinds of answer, tried in this order:
-
-- **One of the shipped alarms** — `ding`, `ding-dong`, `alarm` or `gong`. These
-  are not files: the shell synthesises them from a handful of numbers and writes
-  the result into `~/.cache/moonswing/sounds/` the first time one is
-  wanted, which is what lets them work identically under `flutter run`, a `make
-  install` and the snap. It is also what makes them shippable — a recorded
-  kitchen timer is somebody's sample and somebody's licence, and these are
-  arithmetic under this project's own GPL-3.0. `ding` is the default, one clear
-  strike left to ring; `ding-dong` is two notes falling, like a doorbell;
-  `alarm` is two bursts of three quick tones for somebody in the next room; and
-  `gong` is one low strike with a long tail.
-- **`none`** (or `off`, or `silent`) — a finished timer notifies without a
-  sound.
-- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
-- **A name from the system's sound theme** — anything else, looked for under the
-  XDG sound directories exactly as [the notification chime](#notifications) is.
-  `timer_sound = "complete"` finds
-  `/usr/share/sounds/freedesktop/stereo/complete.oga`.
-
-A name that resolves to nothing is *not* silence: the card the overview's timer
-button opens says so and names what it could not find. The notification arrives
-either way, which is why it needs saying.
-
-Several countdowns set to the same minute ring **once**, not once each — the
-alarm is longer than a chime and three of them over each other is a noise. Each
-one still posts its own notification, so nothing about *which* timers finished
-is lost.
+If the sound can't be found, the timer card in the overview says so; the notification still arrives.
 
 #### Quick timers
 
-The card the hourglass button opens has a **Name** field under the duration. A
-name labels the timer it starts — the floating card reads *Tea · 03:00* rather
-than *Timer · 03:00*, and the notification says *Tea (03:00) is up.* — and
-**Save as quick timer** keeps that name and length. Every quick timer is a chip
-at the top of the same card: click it and the countdown starts, named, with
-nothing to type; its **×** forgets it. Saving a name you already have changes
-that one's length instead of adding a second chip.
+The hourglass card has a **Name** field. A name labels the timer (*Tea · 03:00*, and *Tea (03:00) is up.* in the notification). **Save as quick timer** keeps the name and length as a chip at the top of the card: click the chip to start it, click its **×** to forget it. Saving an existing name updates its length.
 
-They are kept in `config.toml`, one table each, so they outlive a restart —
-which running timers deliberately do not:
+Quick timers are stored in `config.toml` and survive a restart; running timers do not.
 
 ```toml
 [[modules.clock.quick_timers]]
@@ -285,26 +235,31 @@ name = "Pasta"
 duration = "10:00"
 ```
 
-| Key        | Type          | Description                                                        |
-| ---------- | ------------- | ------------------------------------------------------------------ |
-| `name`     | string        | What the chip, the floating card and the notification call it. Up to 40 characters, one line. |
-| `duration` | string or int | Anything the duration field takes — `3m`, `1:30`, `1h30m`, a bare `5` for minutes — or a whole number of seconds. Up to 99 hours. |
+| Key        | Type          | Description                                                                 |
+| ---------- | ------------- | --------------------------------------------------------------------------- |
+| `name`     | string        | Label; up to 40 characters, one line                                        |
+| `duration` | string or int | `3m`, `1:30`, `1h30m`, bare `5` (minutes), or an int of seconds. Max 99 hours |
 
-A row without a name, or with a length that does not parse, is skipped; the
-others still show, and the skipped one is left in the file as you wrote it.
+A row with no name or an unparseable duration is skipped and left in the file untouched.
 
 ### Media Player
+
+Playback buttons and the current track title for the active MPRIS player. Takes no room when nothing is playing or paused. In the default bottom panel.
 
 ```toml
 [modules.media_player]
 max_text_width = 200.0
 ```
 
-| Key              | Type  | Default | Description                                  |
-| ---------------- | ----- | ------- | -------------------------------------------- |
-| `max_text_width` | float | `200.0` | Length in pixels before text starts scrolling — down the bar, on a left or right one |
+| Key              | Type  | Default | Description                                                    |
+| ---------------- | ----- | ------- | -------------------------------------------------------------- |
+| `max_text_width` | float | `200.0` | Title length in pixels before it scrolls (runs down a side bar) |
 
 ### Workspaces
+
+One dot per workspace on the bar's monitor. The selected one is longer and drawn in the theme's `accent` (fainter when the focus is on another monitor). In the default top panel.
+
+**Requires Miracle WM.** On other compositors the module is left out of the bar.
 
 ```toml
 [modules.workspaces]
@@ -313,142 +268,90 @@ show_app_icons = true
 selected_apps_only = false
 icon_size = 14
 max_icons = 4
+flash_urgent = true
+urgent_flash_seconds = 5.0
 show_policy_toggle = true
 ```
 
-| Key                  | Type | Default | Description                                                           |
-| -------------------- | ---- | ------- | --------------------------------------------------------------------- |
-| `show_labels`        | bool | `true`  | Show each workspace's number (or name) in its dot                     |
-| `show_app_icons`     | bool | `true`  | Show the icons of the applications open on each workspace             |
-| `selected_apps_only` | bool | `false` | Show app icons on the selected workspace only; the others fold theirs away |
-| `icon_size`          | int  | `14`    | Icon size in pixels (8–64)                                            |
-| `max_icons`          | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
-| `show_policy_toggle` | bool | `true`  | Put the tiling/floating switch in a workspace's right-click menu      |
+| Key                    | Type  | Default | Description                                                    |
+| ---------------------- | ----- | ------- | -------------------------------------------------------------- |
+| `show_labels`          | bool  | `true`  | Workspace number (or name) in each dot                         |
+| `show_app_icons`       | bool  | `true`  | Icons of the apps open on each workspace (one per app)         |
+| `selected_apps_only`   | bool  | `false` | Only the selected workspace shows its icons                    |
+| `icon_size`            | int   | `14`    | Icon size in pixels (8–64)                                     |
+| `max_icons`            | int   | `4`     | Icons per workspace before the rest become `+N` (1–16)         |
+| `flash_urgent`         | bool  | `true`  | A workspace with an urgent window pulses in the accent colour  |
+| `urgent_flash_seconds` | float | `5.0`   | Length of one pulse (1–30)                                     |
+| `show_policy_toggle`   | bool  | `true`  | Tile/float rows in a workspace's right-click menu              |
 
-The workspaces of the bar's monitor sit together in one pill — the pod — as a
-row of dots, one per workspace. The selected one is longer than the rest, and
-the selection colour (the theme's `accent`) slides from dot to dot as you
-switch. The selected workspace is the focused one when it is on this monitor,
-and otherwise the one this monitor is showing, drawn in a fainter accent — so
-every bar says what its own screen is on, not only the bar under the focus.
+**Right-clicking a dot** opens a menu for that workspace (not necessarily the focused one), above the usual module rows (see [Right-clicking a panel](#right-clicking-a-panel)):
 
-With `show_labels` on, each dot carries its workspace's number or name; off,
-an empty workspace is a bare dot, and the row is read by position.
-
-With `show_app_icons` on, each dot also carries the icons of what is open on
-it, so the dots are no longer all the same length — a workspace holding three
-windows is longer than an empty one. The icons come from Miracle's window
-tree, and an application is drawn once however many of its windows are on the
-workspace. With `selected_apps_only` on as well, only the selected workspace
-shows its icons: the others fold theirs away, and switching folds the old
-workspace's icons out as the new one's unfold.
-
-The tree is re-read in response to Miracle's own `window`, `workspace` and
-`output` events — never on a timer — and only the window changes that can move
-a window between workspaces count, so switching focus costs nothing. Nothing
-is read at all while `show_app_icons` is off, and one reader serves every panel
-on every monitor.
-
-**Right-clicking a workspace opens a menu** for that workspace — not the
-focused one, whichever dot was clicked. It has two things on it, and under
-them the workspaces module's own menu (see
-[Right-clicking a panel](#right-clicking-a-panel)).
-
-With `show_policy_toggle` on, the first two rows are the workspace's window
-placement: *Tile new windows* and *Float new windows*, with the one it is
-currently in marked. Choosing the other sends Miracle
-`workspace <n> policy tile|float`, which changes where the *next* window opens —
-whatever is already on the workspace stays where it is. Like the urgency flash it
-costs no extra round-trip: Miracle reports the policy on the `GET_WORKSPACES`
-entry the dot is already built from, so the menu opens already knowing which
-row to mark. A Miracle too old to know the command answers with a parse error,
-and the mark visibly stays where it was rather than reporting a policy nothing
-took.
-
-*Move to output…* is the second page of the same menu, and lists every other
-display Miracle reports — by connector name, with the make and model beside it
-where Miracle knows them. On a single-monitor session the row is greyed rather
-than hidden. Miracle's own `move workspace to output` acts on the *focused*
-workspace and takes no selector, so moving one that is not focused focuses it,
-moves it and puts the focus back where it was; every hop carries
-`--no-auto-back-and-forth`, or a compositor with that option set would read the
-hop back as "go back" and land somewhere else. The list of displays is read once
-per connection and refreshed on Miracle's `output` event — never on a timer — so
-the menu answers out of memory rather than on a round-trip.
+- *Tile new windows* / *Float new windows* (with `show_policy_toggle`): sets where the **next** window opens; existing windows stay put. If Miracle is too old to support it, the mark doesn't move.
+- *Move to output…*: lists the other displays by connector name (with make and model). Greyed out with only one display. The focus returns to where it was afterwards.
 
 ### Dock
+
+Pinned applications, in the centre of the default bottom panel, with an app-directory button at the end.
 
 ```toml
 [modules.dock]
 apps = ["firefox", "org.gnome.Nautilus", "kitty", "code"]
 icon_size = 24
+show_app_directory = true
 ```
 
-| Key         | Type         | Default | Description                                          |
-| ----------- | ------------ | ------- | ---------------------------------------------------- |
-| `apps`      | string array | `[]`    | Desktop entry IDs of apps to show in the dock        |
-| `icon_size` | int          | `24`    | Icon size in pixels (should fit within panel height) |
+| Key                  | Type         | Default | Description                                      |
+| -------------------- | ------------ | ------- | ------------------------------------------------ |
+| `apps`               | string array | `[]`    | Desktop file IDs to pin, in order                |
+| `icon_size`          | int          | `24`    | Icon size in pixels; keep it within the bar height |
+| `show_app_directory` | bool         | `true`  | Show the app-directory button at the end         |
 
-Each entry in `apps` is a desktop file ID (the filename without `.desktop`). For example, `"firefox"` corresponds to `firefox.desktop`, and `"org.gnome.Nautilus"` corresponds to `org.gnome.Nautilus.desktop`.
-
-Desktop files are looked up from standard XDG application directories. Apps with missing desktop files are silently skipped.
-
-**An icon opens its application on a double click**, so a stray click as the pointer crosses the bar launches nothing; a single click does nothing, and a drag reorders the icons. Once launched, the icon dims and an accent-coloured ring spins around it until the application's first window appears — read off the compositor's window list, so it stops the moment the window maps. Double-clicking again while it spins does not start a second copy. An application that never shows a window it can be recognised by stops spinning after 20 seconds, one that was already open (and may only raise its existing window) after 4, and on a compositor whose window list the shell cannot read, after 3.
+- An ID is the desktop file's name without `.desktop`: `"org.gnome.Nautilus"` is `org.gnome.Nautilus.desktop`, looked up in the XDG application directories. Unknown IDs are skipped silently.
+- A new config pins `firefox_firefox`, `org.gnome.Ptyxis` and `org.gnome.Nautilus`.
+- **Double-click** an icon to launch it; a single click only selects it. Drag to reorder. Right-click for *Unpin from dock*.
+- While launching, the icon dims and a ring spins until the app's first window appears (at most 20 s; 4 s if it was already open; 3 s on a compositor whose window list the shell can't read). Double-clicking again meanwhile starts nothing.
+- The app-directory button lists every installed app with search and categories; right-click an app there for *Pin to dock*.
 
 ### Network
+
+The connection icon (Ethernet or Wi-Fi with signal), from NetworkManager. Click for the connection name, IP address and signal strength. Not in the default layout.
 
 ```toml
 [modules.network]
 poll_seconds = 10
 ```
 
-| Key            | Type | Default | Description                                         |
-| -------------- | ---- | ------- | --------------------------------------------------- |
-| `poll_seconds` | int  | `10`    | How often to re-check network status (seconds)      |
+| Key            | Type | Default | Description                           |
+| -------------- | ---- | ------- | ------------------------------------- |
+| `poll_seconds` | int  | `10`    | How often to re-check the connection  |
 
 ### Launcher
 
-A magnifying-glass button that opens the application launcher — the same overlay the `open_launcher` shortcut opens (see [Shortcuts](#shortcuts)), and only ever one of them at a time.
+A bar button (magnifying glass) that opens the application launcher — the same one the `open_launcher` [shortcut](#shortcuts) opens. In the default bottom panel.
 
 ```toml
 [modules.launcher]
 icon_size = 18
 ```
 
-| Key         | Type | Default | Description                             |
-| ----------- | ---- | ------- | --------------------------------------- |
-| `icon_size` | int  | `18`    | Icon size in pixels                     |
+| Key         | Type | Default | Description         |
+| ----------- | ---- | ------- | ------------------- |
+| `icon_size` | int  | `18`    | Icon size in pixels |
 
-The launcher itself lists every installed application, ranks them as you type (matching the name, generic name, `Keywords=`, and desktop ID, in that order of preference), and launches the selected one with Enter. Applications that declare `[Desktop Action …]` groups — "New Private Window", "New Document" — show a chevron; hovering it, or pressing Right with the caret at the end of your query, opens those as a submenu.
+The launcher:
 
-Typing a calculation shows its result above the application results:
+- Lists every app that would show in a menu (not `NoDisplay=true`, not excluded by `OnlyShowIn=`/`NotShowIn=`).
+- Ranks matches on name, then generic name, then `Keywords=`, then desktop ID. **Enter** launches the selection.
+- Shows a chevron for apps with desktop actions ("New Private Window"); hover it, or press **Right** with the caret at the end, to open them.
+- Evaluates arithmetic when the query has a digit and an operator: `2^10/4` → `256`, `sqrt(16)+1` → `5`. Supports `+ - * / ^ % !`, parentheses, `sqrt`, `sin`, `cos`, `tan`, `ln`, `log`, `abs`, `ceil`, `floor` and more, and `pi` and `e`.
+- Converts units: `5 km` lists equivalents; `5 km to mi` (or `in`, `into`, `as`, `>`) gives one. Covers length, mass, temperature, volume, area, speed, time, data, pressure, energy and angle.
+- Closes on **Escape** or a click outside the card.
 
-```
-2^10/4      →  256
-(1+2)*3     →  9
-sqrt(16)+1  →  5
-```
-
-`+ - * / ^ % !`, parentheses, and the usual functions (`sqrt`, `sin`, `cos`, `tan`, `ln`, `log`, `abs`, `ceil`, `floor`, …) are understood, along with the constants `pi` and `e`. A query has to contain both a digit and an operator to be treated as arithmetic, so searching for an application never turns into a calculation.
-
-Escape or a click on the blurred backdrop dismisses the launcher.
-
-**This module is in the default bottom panel, but adding it to an existing config is manual** — the default config file is only written when none exists. Add `"launcher"` to a panel's layout:
-
-```toml
-[panels.bottom.layout]
-right = ["media_player", "notifications", "launcher"]
-```
-
-The launcher lists the same applications any menu would: those `g_app_info_should_show()` accepts. An entry with `NoDisplay=true`, or one restricted with `OnlyShowIn=GNOME;`, will not appear.
+The default config is only written when none exists, so to add the button to an older config put `"launcher"` in a panel's layout, e.g. `right = ["media_player", "notifications", "launcher"]` under `[panels.bottom.layout]`.
 
 ### GitHub
 
-The GitHub mark, the number of unread notifications beside it, and the inbox
-behind a click: what is waiting for you across every repository you watch, with
-the reason each thread arrived. Clicking one opens it in your browser and marks
-it read, the way clicking it on github.com does; the tick beside a row marks it
-read without opening it, and the double tick in the header marks the whole list.
+The GitHub mark with your unread notification count. Click for the inbox: each thread with the reason it arrived. Click a thread to open it in the browser (and mark it read); the tick on a row marks it read; the double tick in the header marks all read. Not in the default layout.
 
 ```toml
 [modules.github]
@@ -459,104 +362,32 @@ include_read = false
 mark_read_on_open = true
 ```
 
-| Key                  | Type   | Default | Description                                                                                        |
-| -------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
-| `refresh_seconds`    | int    | `60`    | How often the list is re-read (60–3600). GitHub enforces a floor of a minute and may ask for longer |
-| `show_count`         | bool   | `true`  | Show the unread count beside the mark                                                               |
-| `participating_only` | bool   | `false` | Only threads you are mentioned in, assigned to or asked to review                                   |
-| `include_read`       | bool   | `false` | Keep threads in the list after they are marked read                                                 |
-| `mark_read_on_open`  | bool   | `true`  | Mark a notification read as it opens                                                                |
-| `client_id`          | string | the GitHub CLI's | The OAuth app the sign-in runs against — see below                                        |
-| `scopes`             | string | `"notifications"` | What the sign-in asks for — see below                                                     |
+| Key                  | Type   | Default            | Description                                              |
+| -------------------- | ------ | ------------------ | -------------------------------------------------------- |
+| `refresh_seconds`    | int    | `60`               | Poll interval (60–3600); GitHub may ask for longer       |
+| `show_count`         | bool   | `true`             | Show the unread count                                    |
+| `participating_only` | bool   | `false`            | Only threads you're mentioned in, assigned or asked to review |
+| `include_read`       | bool   | `false`            | Keep threads listed after they're read                   |
+| `mark_read_on_open`  | bool   | `true`             | Mark a thread read when you open it                      |
+| `client_id`          | string | GitHub CLI's       | OAuth app used for sign-in — see below                   |
+| `scopes`             | string | `"notifications"`  | Space-separated scopes the sign-in requests              |
 
-**The module is not in the default layout** — add `"github"` to a panel's
-layout:
-
-```toml
-[panels.bottom.layout]
-left = ["github"]
-```
+To add it, put `"github"` in a panel's layout. Nothing is polled while no bar or overview tab needs it. An unchanged list costs no rate-limit quota.
 
 #### Signing in
 
-The GitHub account is linked once for the whole shell, under Settings ›
-**Accounts** — the module's popup, while signed out, has a button that goes
-there. **Sign in with GitHub** on the GitHub card starts the same *device flow*
-`gh auth login` uses: the shell asks GitHub for an eight character code, shows
-it on the card, and opens github.com/login/device in your browser. You type the
-code in there, authorise the app, and the shell takes it from there — your
-password is never typed into the shell and never reaches it. Closing the
-settings half-way through loses nothing: the code stays on the card until it
-expires. Anything else in the shell that reads GitHub uses the same account —
-the todo board, for one, shows a link to an issue or pull request by its title,
-and the overview's Code tab (see Code Dashboard) your review requests, pull
-requests and issues.
+Sign in under **Settings › Accounts › GitHub** (the module's popup links there when signed out). The shell uses GitHub's device flow: it shows a code, opens github.com/login/device, and you enter the code there. The shell never sees your password. The same account is used by the todo board's issue/PR links and the overview's Code tab.
 
-The access token is written to `~/.local/state/moonswing/github-token`
-(mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** on
-the Accounts card deletes it. That signs this machine out; it does not revoke
-the authorisation, which is done from
-[Settings › Applications](https://github.com/settings/applications) on github.com
-— the key button beside **Sign out** opens that page.
-
-The consent screen says **GitHub CLI**, because `client_id` defaults to that
-tool's public client id — a client id is public by construction, and borrowing
-one is what lets this work without every user registering an app. To use your
-own instead, register an OAuth app (Developer settings › OAuth Apps) with
-*Enable Device Flow* ticked, and name it:
-
-```toml
-[modules.github]
-client_id = "Iv1.0123456789abcdef"
-```
-
-`scopes` is what that sign-in asks for. The default, `notifications`, is read
-access to the notification list plus the two calls that mark a thread read —
-nothing else, not the contents of a single repository. Notifications from
-**private** repositories are not included in that; listing them needs `repo`,
-which is full read/write access to every repository you can reach. The same
-goes for a todo card's link into a private repository, which is shown by its
-title only with `repo`:
-
-```toml
-[modules.github]
-scopes = "notifications repo"
-```
-
-Change either key and the saved token no longer matches what is being asked for:
-sign out and in again.
-
-#### How current the list is
-
-There is no push channel for notifications — GitHub's API is polled — so the
-module polls it the way the API asks to be polled. Each request carries the
-previous response's validator, so an unchanged list comes back as a 304 that
-costs no rate-limit quota, and GitHub's own `X-Poll-Interval` is honoured
-whenever it asks for longer than `refresh_seconds`. Nothing is polled at all
-while no panel carries the module: one poll for the machine, however many bars
-draw the mark.
-
-Copying the sign-in code needs `wl-copy` (the `wl-clipboard` package), as the
-emoji picker does; without it the code can still be typed out by hand, and the
-card says so.
+- The token is stored in `~/.local/state/moonswing/github-token` (mode 0600), not in `config.toml`.
+- **Sign out** deletes it from this machine but doesn't revoke access; the key button beside it opens [github.com/settings/applications](https://github.com/settings/applications) to do that.
+- Copying the code needs `wl-copy` (package `wl-clipboard`); without it, type the code by hand.
+- The consent screen says **GitHub CLI** because that is the default `client_id`. To use your own OAuth app, register one with *Enable Device Flow* ticked and set `client_id = "Iv1.0123456789abcdef"`.
+- The default `notifications` scope doesn't cover **private** repositories. For those (and private-repo link titles on the todo board), set `scopes = "notifications repo"` — this grants full repository access.
+- After changing `client_id` or `scopes`, sign out and in again.
 
 ### Stock market
 
-Your watchlist crawling along the bar the way the ticker runs along the bottom
-of a financial news channel: each symbol, its price, and its move today in green
-or red. Hover the strip to hold it still, or set `scroll = false` to have it
-stand still on the first ticker of the list for good. Click it for the list itself, where you
-can **search by symbol or company name** and add what you find, reorder the list
-with the arrows on a row, remove a ticker with its ×, or click a row to open its
-page on Yahoo Finance.
-
-Quotes come from Yahoo Finance, read exactly the way
-[`ticker`](https://github.com/achannarasappa/ticker) reads them — the same
-request, the same session handshake, and the same rule for which price is "the"
-price: outside the regular session the strip shows the pre-market or after-hours
-price once anything has traded, and the day's change includes it. The **Stock
-market** desktop widget reads the same quotes from the same poll, so the two never
-disagree.
+Your watchlist scrolling along the bar like a news ticker: symbol, price and today's move in green or red. Hover to pause it. Click for the list: search by symbol or company name to add, reorder with the arrows, remove with **×**, or click a row to open it on Yahoo Finance. Not in the default layout.
 
 ```toml
 [modules.stocks]
@@ -567,50 +398,27 @@ scroll_speed = 40
 width = 320
 ```
 
-| Key               | Type             | Default | Description                                                                                   |
-| ----------------- | ---------------- | ------- | --------------------------------------------------------------------------------------------- |
-| `symbols`         | array of strings | `[]`    | The watchlist, in crawl order, as Yahoo Finance spells each symbol                             |
-| `refresh_seconds` | int              | `15`    | How often prices are re-read while a market on the list is trading (5–3600)                    |
-| `scroll`          | bool             | `true`  | Whether the strip crawls. `false` shows only the first ticker on the list, standing still      |
-| `scroll_speed`    | float            | `40`    | How fast the strip crawls, in pixels a second (5–400)                                          |
-| `width`           | float            | `320`   | How wide the crawling strip is in a horizontal bar (80–2000). A watchlist narrower than this sits still |
+| Key               | Type         | Default | Description                                                  |
+| ----------------- | ------------ | ------- | ------------------------------------------------------------ |
+| `symbols`         | string array | `[]`    | Watchlist in display order, as Yahoo Finance spells them     |
+| `refresh_seconds` | int          | `15`    | Poll interval while a market on the list is open (5–3600)    |
+| `scroll`          | bool         | `true`  | `false` shows only the first symbol, standing still          |
+| `scroll_speed`    | float        | `40`    | Pixels per second (5–400)                                    |
+| `width`           | float        | `320`   | Strip width on a horizontal bar (80–2000); a shorter list doesn't scroll |
 
-Symbols are Yahoo Finance's: `AAPL` for a US stock, `^GSPC` for the S&P 500,
-`BRK-B` for a class of share, `SAP.DE` for a stock on another exchange,
-`EURUSD=X` for a currency pair, `BTC-USD` for a coin. Indices are shown by name
-and currency pairs as `EUR/USD`. The popup's add button writes `symbols` for you,
-and **Settings → Shell → Modules → Stock market** edits the same list.
-
-A new watchlist starts empty; the popup offers the S&P 500, the Dow and the Nasdaq
-as a one-click start. While every market on the list is closed, prices are
-re-read every two minutes instead of every `refresh_seconds`, and nothing is
-requested at all while neither the strip nor the widget is on screen. In a
-left or right bar, where there is no room to crawl, the module is a chart icon
-coloured by the first ticker's move.
-
-**The module is not in the default layout** — add `"stocks"` to a panel's
-`left`, `center` or `right` list, or use **Settings → Shell → Panels & Layout**.
+- Symbols: `AAPL`, `^GSPC` (S&P 500), `BRK-B`, `SAP.DE`, `EURUSD=X`, `BTC-USD`. Case doesn't matter; duplicates are dropped.
+- Outside regular hours the price shown is pre-market or after-hours once anything has traded.
+- While every market on the list is closed, prices refresh every two minutes. Nothing is fetched while neither the strip nor the Stock market desktop widget is on screen.
+- On a side bar the module is a chart icon coloured by the first symbol's move.
+- An empty list offers the S&P 500, Dow and Nasdaq in one click. The popup and Settings › Shell › Modules › Stock market both edit `symbols`.
+- To add it, put `"stocks"` in a panel's layout, or use Settings › Shell › Panels & Layout.
 
 ### Notifications
 
-A bell that shakes and shows a count when a notification arrives, and opens the
-**notification panel** on click: a panel docked against the right edge of the
-screen whose bar you clicked (or the left — see `side`), listing what has
-arrived with each notification's actions and a **✓** to mark it read, a **mark
-everything read** button at the top, and the silence switch and notification
-sound at the foot. The shell is the desktop's notification daemon, so this is where
-notifications from every application land.
-
-The panel is built like the [clipboard history](#clipboard) and behaves like it.
-It slides out of its edge and back into it (or [however you
-like](#the-panels-animation)), **never takes keyboard focus**, and
-stays open until you close it with its ×, click the bell again, or press the
-`open_notifications` shortcut — clicking anything else, or opening another menu,
-leaves it where it is. Clicking a notification that opens something closes it,
-out of that thing's way. It **floats over your windows** rather than pushing them
-aside: opening it moves nothing, and it casts the theme's popup shadow across its
-inner edge (a click on the shadow still lands on the window beneath it). If the
-clipboard history is docked against the same edge, the two open side by side.
+The shell is the desktop's notification daemon. The bell shows a count and
+shakes when something arrives; clicking it (or `open_notifications`, Super+N)
+opens the **notification panel**, docked against the right edge of the screen
+whose bar you clicked.
 
 ```toml
 [modules.notifications]
@@ -619,142 +427,119 @@ sound_volume = 0.7
 side = "right"
 width = 400
 animation = "slide"
-animation_curve = "ease_out"
-animation_duration = 150
 ```
 
-| Key            | Type   | Default   | What it does                                                                                       |
-| -------------- | ------ | --------- | -------------------------------------------------------------------------------------------------- |
-| `sound`        | string | `"chime"` | What plays when a notification arrives — see below.                                                |
-| `sound_volume` | float  | `0.7`     | How loud it plays, from 0 to 1. Clamped.                                                           |
-| `side`         | string | `"right"` | Which edge of the screen the panel docks against: `"left"` or `"right"`                            |
-| `width`        | int    | `400`     | How wide the panel is, in pixels (240–1200) — and so how much of the screen it takes from windows |
-| `animation*`   |        |           | How the panel flies out of its edge and back — see [the panel's animation](#the-panels-animation)  |
+| Key            | Type   | Default   | Description                                                      |
+| -------------- | ------ | --------- | ---------------------------------------------------------------- |
+| `sound`        | string | `"chime"` | What plays when a notification arrives — see below               |
+| `sound_volume` | float  | `0.7`     | Volume, 0–1                                                      |
+| `side`         | string | `"right"` | Edge the panel docks against: `"left"` or `"right"`              |
+| `width`        | int    | `400`     | Panel width in pixels (240–1200)                                 |
+| `animation*`   |        |           | How the panel opens and closes — see [below](#the-panels-animation) |
 
-`side`, `width` and the `animation` keys are read when the panel opens, so a
-change applies the next time you open it. They are read whether or not any bar
-carries the bell: the floating notification card opens the same panel.
+`side`, `width` and the animation keys apply the next time the panel opens.
+They take effect even with no bell in any bar, since the floating notification
+card opens the same panel.
 
-`sound` takes four kinds of answer, tried in this order:
+**`sound`** accepts:
 
-- **One of the shipped sounds** — `chime`, `ping`, `glass`, `bell` or `knock`.
-  These are not files: the shell synthesises them from a handful of numbers and
-  writes the result into `~/.cache/moonswing/sounds/` the first time one is
-  wanted, which is what lets them work identically under `flutter run`, a `make
-  install` and the snap. `chime` is the default.
-- **`none`** (or `off`, or `silent`) — notifications arrive without a sound.
-- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
-- **A name from the system's sound theme** — anything else. Looked for under the
-  XDG sound directories (`~/.local/share/sounds`, `/usr/share/sounds`, and
-  whatever `XDG_DATA_DIRS` names), both directly and in the
-  `<theme>/<profile>/` layout the `sound-theme-freedesktop` package installs.
-  `sound = "message"` finds `/usr/share/sounds/freedesktop/stereo/message.oga`.
+- a shipped sound: `chime`, `ping`, `glass`, `bell` or `knock` (generated by
+  the shell and cached in `~/.cache/moonswing/sounds/`);
+- `none`, `off` or `silent`;
+- a path (anything containing `/`; `~` is expanded), in any format mpv plays;
+- a name from the system sound theme, searched under the XDG sound directories
+  (`~/.local/share/sounds`, `/usr/share/sounds`, `$XDG_DATA_DIRS`), e.g.
+  `"message"` finds `/usr/share/sounds/freedesktop/stereo/message.oga`.
 
-A name that resolves to nothing is *not* silence: the notification panel's
-**Notification sound** row says so, names the key, and previews whatever is
-configured when you click it.
+A name that matches nothing is reported on the panel's **Notification sound**
+row; click the row to preview. The chime needs mpv, plays only while a
+`notifications` module is in some panel, never plays while notifications are
+silenced, and plays once for a burst.
 
-Two things the chime deliberately does not do. It does not play while
-notifications are silenced — silencing is about interruption, and a sound is the
-most interrupting thing the shell does. And a burst of notifications arriving
-together plays once rather than once each, which is why the count on the bell is
-what says how many there were.
+**The panel:**
 
-**The chime belongs to this module**, so it plays only while a `notifications`
-module is in one of your panels. With the module in no panel there is nothing
-holding it open, and the panel's sound row says that too.
+- Each card has its actions, a **✓** to mark it read and a **✕** to remove
+  it; the header's **✓✓** marks everything read. The foot holds the silence
+  switch (also in the bell's right-click menu; stored as `[notifications]
+  silenced`) and the sound row.
+- Marking read removes nothing. It clears the bell's count and the floating
+  card. Opening the panel marks nothing read.
+- It never takes keyboard focus and stays open until you click its ×, the
+  bell, or press the shortcut. Clicking a notification that opens something
+  closes it.
+- It sits above your windows without moving them, between the top and bottom
+  bars. Clicks on its shadow reach the window beneath. Docked against the same
+  edge as the [clipboard history](#clipboard), the two sit side by side.
 
-**This module is in the default bottom panel, but adding it to an existing
-config is manual** — the default config file is only written when none exists.
-Add `"notifications"` to a panel's layout:
+The bell is in the default bottom panel. An existing config is never rewritten,
+so to add it yourself:
 
 ```toml
 [panels.bottom.layout]
 right = ["media_player", "notifications", "launcher"]
 ```
 
-The panel ignores the bars' exclusive zones and draws on the overlay layer, so
-it covers the full height of the output and passes over the panels rather than
-being pushed between them.
-
-#### Read, and dismissed
-
-Marking read is not dismissing. A card's **✓**, or the header's **✓✓** for all
-of them, marks it read: nothing is removed, the messages stay on the list to be
-read again, and what stops is the shell *asking* — the bell's count, the
-floating card in the corner of every output, and the chime. A card's **✕**
-takes it off the list.
-
-Opening the panel does not mark anything read. Reading a notification is
-something you do, not something a window being mapped does for you.
-
 #### The panel's animation
 
-How the panel arrives and leaves is yours to choose, and the [clipboard
-history](#clipboard) takes the same six keys in its own `[modules.clipboard]`
-table, so the two can differ.
+Both the notification panel and the [clipboard history](#clipboard) take these
+keys, each in its own table.
 
 ```toml
 [modules.notifications]
-animation = "slide"           # none, slide, fade, reveal or stretch
-animation_curve = "ease_out"  # how it is paced
-animation_duration = 150      # milliseconds to arrive; 0 is no animation
-animation_exit_ratio = 0.75   # leaving takes this much of that
-animation_travel = 1.0        # how much of its width it moves through
-animation_fade = false        # fade as well as move
+animation = "slide"
+animation_curve = "ease_out"
+animation_duration = 150
+animation_exit_ratio = 0.75
+animation_travel = 1.0
+animation_fade = false
 ```
 
-| Key                    | Type   | Default      | What it does                                                                                                        |
-| ---------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `animation`            | string | `"slide"`    | What moves — see below                                                                                              |
-| `animation_curve`      | string | `"ease_out"` | How it is paced: `linear`, `ease_in`, `ease_out`, `ease_in_out`, `emphasized`, `overshoot`, `bounce` or `elastic` |
-| `animation_duration`   | int    | `150`        | How long arriving takes, in milliseconds (0–2000). `0` turns the animation off                                     |
-| `animation_exit_ratio` | float  | `0.75`       | How long leaving takes, as a proportion of arriving (0–2): `1` is the same, `0.5` twice as quick                    |
-| `animation_travel`     | float  | `1.0`        | How much of the panel's width the movement covers (0.05–1)                                                          |
-| `animation_fade`       | bool   | `false`      | Fade the panel in and out while it slides, is revealed or stretches                                                 |
+| Key                    | Type   | Default      | Description                                                                                       |
+| ---------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------- |
+| `animation`            | string | `"slide"`    | `slide`, `fade`, `reveal`, `stretch` or `none`                                                    |
+| `animation_curve`      | string | `"ease_out"` | `linear`, `ease_in`, `ease_out`, `ease_in_out`, `emphasized`, `overshoot`, `bounce` or `elastic` |
+| `animation_duration`   | int    | `150`        | Opening time in ms (0–2000); `0` turns the animation off                                          |
+| `animation_exit_ratio` | float  | `0.75`       | Closing time as a fraction of opening time (0–2)                                                  |
+| `animation_travel`     | float  | `1.0`        | Fraction of the panel's width the movement covers (0.05–1)                                        |
+| `animation_fade`       | bool   | `false`      | Also fade while moving                                                                            |
 
-The effects:
-
-- **`slide`** — out of the edge of the screen it is docked against, and back
-  into it. The default.
-- **`fade`** — the panel fades in where it stands, and back out.
-- **`reveal`** — the panel stays put and is uncovered from the screen edge
-  inwards, like a blind being drawn.
-- **`stretch`** — the panel grows out of the screen edge, squeezed at first and
-  stretching to its full width.
-- **`none`** — the panel is simply there, and simply gone.
-
-Leaving plays the curve backwards, so an `ease_out` arrival is an `ease_in`
-departure and an `overshoot` arrives past its mark and leaves with a small dip
-first. The curves are the ones a theme's `overlay_animation_curve` takes.
-Whatever the curve, **the panel never comes away from the screen edge**: a
-slide that would overshoot inwards holds at the edge instead, since anything
-else would open a strip down the whole height of the screen.
-
-`animation_travel` below 1 starts the panel part of the way there — a slide
-that begins half on screen, a reveal that begins half uncovered — which reads
-best with `animation_fade = true`, since without a fade it starts with a jump.
-`animation_travel` and `animation_fade` do nothing for `fade` and `none`.
+- `slide` comes out of the screen edge; `fade` fades in place; `reveal`
+  uncovers the panel from the edge inwards; `stretch` grows it out of the
+  edge; `none` shows it at once.
+- Closing plays the curve in reverse. The panel never leaves the screen edge,
+  so an overshoot holds at the edge instead.
+- `animation_travel` below 1 starts the panel part-way in; pair it with
+  `animation_fade = true` to avoid a jump. Travel and fade do nothing for
+  `fade` and `none`.
 
 ### Sound Control
 
-No configurable settings.
+The speaker icon. Click for a volume slider and mute button for the default
+output; scroll over it to change the volume. No settings.
 
 ### Quick Settings
 
-No configurable settings. Add `"quick_settings"` to a panel's layout for one button that shows the connection, Bluetooth (while it is on) and the volume at a glance — scroll over it to change the volume — and opens a panel with:
+One button showing the connection, Bluetooth (while on) and volume; scroll over
+it to change the volume. Click it for a panel with:
 
-- **Wi-Fi** and **Bluetooth** switches. The arrow on each opens a list: the networks in range, which join with one click when they are saved or open (a new secured network needs its password typed, so that one opens Settings › Network), and the paired Bluetooth devices, which connect or disconnect with one click (pairing a new one is Settings › Bluetooth's).
-- **Power mode** — Power Saver, Balanced or Performance, through `power-profiles-daemon` (or `tuned-ppd`), as in Settings › Power.
-- **Output** and **Input** — the volume of the default speakers and microphone, a mute button on each icon, and the device's name, which opens a list to pick another default.
-- **Brightness**, on a machine with a backlight.
-- **Log out / power off…**, which opens the same menu as the power button.
+- **Wi-Fi** and **Bluetooth** switches. The arrow beside each lists networks in
+  range (saved or open ones join in one click; a new secured network opens
+  Settings › Network for its password) or paired devices (click to connect or
+  disconnect).
+- **Power mode**: Power Saver, Balanced or Performance. Needs
+  `power-profiles-daemon` or `tuned-ppd`.
+- **Output** and **Input**: volume, mute, and a list to pick the default device.
+- **Brightness**, on machines with a backlight.
+- A gear that opens Settings and a power icon that opens the power menu.
 
-Every section has a ⚙ button that opens the full settings page it is a shortcut to, on the screen the panel was opened on; **All settings** opens Settings itself.
+Each section's ⚙ opens its Settings page. No settings of its own, and not in
+the default layout: add `"quick_settings"` to a panel.
 
 ### System Monitor
 
-Drives both the panel module (CPU, memory, and temperature, with a popup) and the **System** tab in the overlay, which adds usage graphs, swap, load average, network throughput, disk usage, and a sortable process table you can kill from. The two share one sampler, so these settings apply to both.
+CPU, memory and temperature in the bar, with a popup. The same settings drive
+the overview's **System** tab (graphs, swap, load, network, disk usage and a
+process table you can kill from).
 
 ```toml
 [modules.system_monitor]
@@ -768,27 +553,26 @@ kill_grace_seconds = 5
 disk_poll_seconds = 30
 ```
 
-| Key                   | Type   | Default     | Description                                                                                              |
-| --------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `poll_seconds`        | int    | `1`         | How often stats are re-read (1–60)                                                                        |
-| `temp_unit`           | string | `"celsius"` | `"celsius"` or `"fahrenheit"`                                                                             |
-| `history_samples`     | int    | `120`       | How many samples the graphs keep (10–600). At the default cadence, 120 is two minutes                     |
-| `cpu_percent_mode`    | string | `"machine"` | `"machine"`: 0–100% of the whole machine, so the process rows sum to the total. `"core"`: `top`-style, where 100% is one saturated core |
-| `show_kernel_threads` | bool   | `false`     | Show kernel threads in the process table                                                                  |
-| `confirm_kill`        | bool   | `true`      | Ask before quitting a process. A *force* quit always confirms regardless                                  |
-| `kill_grace_seconds`  | int    | `5`         | How long a process gets to honour the request to quit before the row offers to force it (1–60)            |
-| `disk_poll_seconds`   | int    | `30`        | How often filesystem usage is re-read (5–600). Separate because it shells out to `df`                     |
+| Key                   | Type   | Default     | Description                                                                                       |
+| --------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------- |
+| `poll_seconds`        | int    | `1`         | How often stats are read (1–60)                                                                   |
+| `temp_unit`           | string | `"celsius"` | `"celsius"` or `"fahrenheit"`                                                                     |
+| `history_samples`     | int    | `120`       | Samples kept for the graphs (10–600)                                                              |
+| `cpu_percent_mode`    | string | `"machine"` | `"machine"`: % of the whole machine. `"core"`: `top`-style, 100% = one core                       |
+| `show_kernel_threads` | bool   | `false`     | Show kernel threads in the process table                                                          |
+| `confirm_kill`        | bool   | `true`      | Ask before ending a process. Force-quit always asks                                               |
+| `kill_grace_seconds`  | int    | `5`         | Wait before offering to force-quit a process that ignored the request (1–60)                      |
+| `disk_poll_seconds`   | int    | `30`        | How often disk usage is read, via `df` (5–600)                                                    |
 
-Nothing is read until something needs it: the shell only samples `/proc` while the panel module is on a panel or the System tab is open, and the per-process scan runs only while that tab is actually the visible one.
-
-Two processes can never be killed from here, whatever the config says: the shell itself, and `init`.
+Nothing is sampled unless the module is in a bar or the System tab is open.
+The shell itself and `init` cannot be killed.
 
 ### Screenshot
 
-The camera in the bar: click it, choose an area, a window or a screen, and the
-PNG is on the disk and on the clipboard. The same settings apply to the
-`screenshot_area` shortcut, which takes the shot without the module being in any
-panel.
+The camera icon: choose an area, a window or a screen, and the PNG is saved and
+copied to the clipboard. `screenshot_area` (Print Screen) uses the same
+settings, with or without the module in a bar. Picking a window needs Miracle
+WM.
 
 ```toml
 [modules.screenshot]
@@ -801,89 +585,80 @@ shutter_sound = "shutter"
 shutter_volume = 0.6
 ```
 
-| Key                 | Type   | Default                  | What it does                                                             |
-| ------------------- | ------ | ------------------------ | ------------------------------------------------------------------------ |
-| `directory`         | string | `~/Pictures/Screenshots` | Where the PNG is written. `~` and `$HOME` are expanded.                  |
-| `filename_prefix`   | string | `"Screenshot"`           | What each file is named before the date and time.                        |
-| `copy_to_clipboard` | bool   | `true`                   | Also put the shot on the clipboard, via `wl-copy`.                       |
-| `delay_seconds`     | int    | `0`                      | A pause before the shutter, for getting a menu on screen first (0–60).   |
-| `show_cursor`       | bool   | `false`                  | Paint the pointer into the frame.                                        |
-| `shutter_sound`     | string | `"shutter"`              | What plays once the file has been written — see below.                   |
-| `shutter_volume`    | float  | `0.6`                    | How loud it plays, from 0 to 1. Clamped.                                 |
+| Key                 | Type   | Default                    | Description                                                        |
+| ------------------- | ------ | -------------------------- | ------------------------------------------------------------------ |
+| `directory`         | string | `"~/Pictures/Screenshots"` | Save folder. `~` and `$HOME` expand; a relative path is under home |
+| `filename_prefix`   | string | `"Screenshot"`             | File name before the date, e.g. `Screenshot_2026-11-14_09-30-00.png` |
+| `copy_to_clipboard` | bool   | `true`                     | Also copy the shot, via `wl-copy`                                  |
+| `delay_seconds`     | int    | `0`                        | Pause before capturing (0–60)                                      |
+| `show_cursor`       | bool   | `false`                    | Include the pointer                                                |
+| `shutter_sound`     | string | `"shutter"`                | Sound played once the file is saved                                |
+| `shutter_volume`    | float  | `0.6`                      | Volume, 0–1                                                        |
 
-#### The shutter
+`shutter_sound` takes a shipped sound (`shutter`, `snap`, `clack`, `tick`),
+`none`/`off`/`silent`, a path, or a sound-theme name, resolved as for
+[the notification chime](#notifications); `"camera-shutter"` finds
+`/usr/share/sounds/freedesktop/stereo/camera-shutter.oga`. It plays when the
+file is written, so a failed capture is silent. A name that matches nothing is
+shown in the screenshot menu.
 
-The sound plays when the screenshot has been **saved**, not when you choose what
-to capture — so it follows `delay_seconds`, and it is the thing that tells you
-the file exists. A capture that failed makes no sound, because nothing was
-photographed.
+### Screen Recorder
 
-`shutter_sound` takes four kinds of answer, tried in this order:
+The video camera icon: choose an area, a window or a screen to record. While
+recording the icon is a red dot with a timer; click it and choose **Stop**.
+`record_screen` (Super+Print Screen) records the current screen and stops on a
+second press. Video only, no audio. Needs `ffmpeg`.
 
-- **One of the shipped shutters** — `shutter`, `snap`, `clack` or `tick`. These
-  are not files: the shell synthesises them from a handful of numbers and writes
-  the result into `~/.cache/moonswing/sounds/` the first time one is
-  wanted, which is what lets them work identically under `flutter run`, a `make
-  install` and the snap. It is also what makes them shippable — a camera click
-  recording is almost always somebody's licensed sample, and these are
-  arithmetic under this project's own GPL-3.0, with no third party in them.
-  `shutter` is the default: a reflex camera, mirror up and mirror down. `snap`
-  is one bright click, `clack` a heavier mechanism with the body ringing under
-  it, and `tick` a small dry tick for somebody who wants the confirmation
-  without the theatre.
-- **`none`** (or `off`, or `silent`) — screenshots are saved without a sound.
-- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
-- **A name from the system's sound theme** — anything else, looked for under the
-  XDG sound directories exactly as [the notification chime](#notifications) is.
-  `shutter_sound = "camera-shutter"` finds
-  `/usr/share/sounds/freedesktop/stereo/camera-shutter.oga`.
+```toml
+[modules.screen_recorder]
+directory = "~/Videos/Screencasts"
+filename_prefix = "Screencast"
+fps = 30
+container = "mp4"
+quality = 23
+show_cursor = true
+```
 
-A name that resolves to nothing is *not* silence: the screenshot menu says so
-and names what it could not find. The file is written either way, which is why
-it needs saying — a shutter that has quietly stopped working looks exactly like
-one you turned off.
-
-There is deliberately no shutter for a **recording**. A recording announces
-itself by the readout in the bar for as long as it runs, and a camera click at
-the end of one would be describing a photograph nobody took.
+| Key               | Type   | Default                  | Description                                                                 |
+| ----------------- | ------ | ------------------------ | --------------------------------------------------------------------------- |
+| `directory`       | string | `"~/Videos/Screencasts"` | Save folder, expanded as for screenshots                                    |
+| `filename_prefix` | string | `"Screencast"`           | File name before the date                                                   |
+| `fps`             | int    | `30`                     | Frame rate of the file (1–120)                                              |
+| `container`       | string | `"mp4"`                  | `mp4`, `webm` or `mkv`; anything else is `mp4`                              |
+| `encoder`         | string | `""`                     | ffmpeg encoder; empty is `libvpx-vp9` for webm, `libx264` otherwise         |
+| `quality`         | int    | `23`                     | CRF, 0–51; lower is better. Only used by `libx264`, `libx265`, `libvpx(-vp9)` |
+| `show_cursor`     | bool   | `true`                   | Include the pointer                                                         |
 
 ### Scratchpad
 
-The note in the bar is the window manager's scratchpad: a place to stash a
-window off every workspace and call it back over whatever you are doing. A
-click shows what is on the scratchpad, centred on the screen you are on, or
-hides it again. Hovering it names the two [shortcuts](#shortcuts) that go with
-it — `toggle_scratchpad`, which does what the click does, and
-`move_to_scratchpad`, which stashes the window you are in. That half has no
-button, because clicking the bar is not the window you meant to stash.
+The note icon shows or hides the window manager's scratchpad: windows stashed
+off every workspace. Needs Miracle WM; on other compositors the module is left
+out of the bar.
 
-The module has no settings of its own. It shows no count of what is stashed,
-because the window manager does not report one: a stashed window is taken out
-of its window tree altogether. Every stashed window is shown and hidden together.
+- Click: show or hide every stashed window (same as `toggle_scratchpad`,
+  Super+Z).
+- `move_to_scratchpad` (Super+Shift+Z) stashes the focused window. There is no
+  button for it.
+- Hover to see both [shortcuts](#shortcuts).
 
-If the shell cannot reach the window manager, the icon dims and its label says
-why; the next click tries again.
+No settings and no count (the window manager does not report one). If the
+window manager cannot be reached the icon dims and the tooltip says why; the
+next click retries.
 
 ### Clipboard
 
-The clipboard icon opens your **clipboard history**: a panel docked against the
-left edge of the screen whose bar you clicked (or the right — see `side`),
-listing everything you have copied, newest first. Text, pictures, and files
-copied in a file manager — videos, documents, folders — are all kept, each on a
-card showing what it is, its size and when you copied it.
+The clipboard icon opens your **clipboard history**, docked against the left
+edge of the screen whose bar you clicked. It keeps text, pictures and files
+copied in a file manager, newest first.
 
-**Click a card to copy it again**, then paste it wherever you like. The card
-moves to the top and says *Copied*; the top card, outlined, is what is on the
-clipboard now. The pin keeps an entry when the history fills up and when you
-press **Clear**; the bin forgets one entry.
-
-The panel **never takes keyboard focus**, so copying from it leaves the window
-you were typing in exactly as it was — click a card, click back into your
-document, paste. It stays open until you close it with its ×, or click the
-clipboard icon again; clicking anything else, or opening another menu, leaves it
-where it is. It **floats over your windows** rather than pushing them aside, so
-opening it moves nothing, and it casts the theme's popup shadow across its inner
-edge — a click on the shadow still lands on the window beneath it.
+- Click a card to copy it again. The outlined top card is what is on the
+  clipboard now.
+- The pin keeps an entry through trimming and **Clear**; the bin deletes one.
+- The panel never takes keyboard focus, so your window keeps its cursor. It
+  stays open until you click its × or the icon again.
+- It sits above your windows without moving them, like the
+  [notification panel](#notifications); docked on the same edge, the two sit
+  side by side.
 
 ```toml
 [modules.clipboard]
@@ -895,40 +670,28 @@ max_item_mb = 32
 animation = "slide"
 ```
 
-| Key           | Type   | Default  | Description                                                                                       |
-| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------- |
-| `side`        | string | `"left"` | Which edge of the screen the panel docks against: `"left"` or `"right"`                           |
-| `width`       | int    | `360`    | How wide the panel is, in pixels (240–1200) — and so how much of the screen it takes from windows |
-| `max_entries` | int    | `100`    | How many entries are kept before the oldest go (1–1000). Pinned entries are kept on top of this   |
-| `persist`     | bool   | `true`   | Keep the history across restarts. `false` starts it empty every time the shell starts            |
-| `max_item_mb` | int    | `32`     | Anything copied that is bigger than this, in megabytes, is not kept (1–1024)                      |
-| `animation*`  |        |          | How the panel flies out of its edge and back — see [the notification panel's](#the-panels-animation) |
+| Key           | Type   | Default  | Description                                                              |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------ |
+| `side`        | string | `"left"` | Edge the panel docks against: `"left"` or `"right"`                      |
+| `width`       | int    | `360`    | Panel width in pixels (240–1200)                                         |
+| `max_entries` | int    | `100`    | Entries kept before the oldest go (1–1000); pinned ones don't count      |
+| `persist`     | bool   | `true`   | Keep history across restarts. `false` deletes the saved history          |
+| `max_item_mb` | int    | `32`     | Skip anything larger than this, in MB (1–1024). Text is capped at 2 MB   |
+| `animation*`  |        |          | How the panel opens and closes — see [the panel's animation](#the-panels-animation) |
 
-`side`, `width` and the `animation` keys are read when the panel opens, so a
-change applies the next time you open it. The animation keys are the
-notification panel's six — [`animation`, `animation_curve`,
-`animation_duration`, `animation_exit_ratio`, `animation_travel` and
-`animation_fade`](#the-panels-animation) — set here for the clipboard history
-alone. Docked against the same edge as the [notification
-panel](#notifications), the two open side by side. A file you copy is kept as its path, not its contents, so
-`max_item_mb` is about pictures and media copied directly — a screenshot, an
-image copied out of a browser.
+- `side`, `width` and the animation keys apply the next time the panel opens.
+- Copied files are kept as paths, so `max_item_mb` limits pictures and media
+  copied directly.
+- History is recorded only while some bar has the clipboard icon. It is
+  stored, private to you, in `~/.local/state/moonswing/clipboard/` (or under
+  `$XDG_STATE_HOME`). Entries a password manager marks as secret (KeePassXC
+  does) are never recorded.
+- **Requires `wl-clipboard`** (`wl-paste`, `wl-copy`) and a compositor with the
+  wlr- or ext-data-control protocol. Without them the icon dims and the panel
+  says what is missing, with a retry.
 
-The history is recorded while any bar carries the clipboard icon, and not at
-all otherwise. It is kept in `~/.local/state/moonswing/clipboard/` (or under
-`$XDG_STATE_HOME`), readable by you alone. Anything a password manager marks as
-not to be remembered — KeePassXC does — is never recorded.
-
-**It needs `wl-paste` and `wl-copy`, from the `wl-clipboard` package**, and a
-compositor offering the wlr- or ext-data-control protocol, which is what lets
-something other than the focused window see what was copied. Without either,
-the panel says which is missing, keeps what it has already recorded, and offers
-a retry; the icon in the bar dims.
-
-**This module is in the default bottom panel, but adding it to an existing
-config is manual** — the default config file is only written when none exists.
-Add `"clipboard"` to a panel's `left`, `center` or `right` list, or use
-**Settings → Shell → Panels & Layout**:
+The icon is in the default bottom panel. To add it to an existing config, use
+**Settings › Shell › Panels & Layout** or:
 
 ```toml
 [panels.bottom.layout]
@@ -937,174 +700,127 @@ left = ["clipboard"]
 
 ### Todo
 
-The checklist icon opens the overview on its **Kanban** tab, on the screen whose
-bar you clicked (see The overview, under Clock). It is a
-board of five columns — **Inbox**, **Todo**, **In Progress**, **Finished**
-and **Abandoned** — and a card is moved between them by dragging it. The **+**
-at the top of a column adds a card there; clicking a card opens it to edit its
-title, details, column, due date and repetition, and to read its history. Every
-time a card changes column, the date and time is recorded in that history.
+The checklist icon opens the overview's **Kanban** tab (see
+[the overview](#the-overview)). The number beside it counts open cards due today
+or overdue. No settings in `config.toml`.
 
-Overdue cards sit at the top of **Inbox**, **Todo** and **In Progress**, above
-the rest, which keep the order you dragged them into. **Finished** shows what
-was finished today; everything finished earlier is folded under the day it was
-finished, and **Abandoned** folds every day, today's included. Click a day to
-open or close it. While you search, every day holding a match is open.
+**The board** has five columns: **Inbox**, **Todo**, **In Progress**,
+**Finished**, **Abandoned**.
 
-When the shell starts, and again at each midnight, it posts one notification
-listing what is due that day, followed by anything still open from an earlier
-day. The number beside the icon counts the same things. Finished and abandoned
-cards are never counted.
+- Drag cards between columns; **+** adds one. Click a card to edit its title,
+  details, column, due date and repeat, or read its history of column moves.
+- Lines like `- [ ] Send it` in the details are drawn as a checklist.
+- Overdue cards sit at the top of Inbox, Todo and In Progress. Finished shows
+  today's cards and folds earlier ones by day; Abandoned folds every day.
+- At start-up and each midnight the shell posts one notification of what is due
+  today and still open from earlier.
+- **Repeat** every N days, weeks or months from a start day. Each scheduled day
+  a copy, due that day, is added to the top of Todo and carries the repeat;
+  edit or delete the newest copy to change or stop it. A monthly repeat on the
+  31st uses the last day of shorter months. Days missed while the shell was off
+  produce one copy, for the latest.
+- **Search** (Ctrl+F) filters every column to cards whose title or details
+  contain all the words typed, anywhere in a word, ignoring case. Escape clears
+  it, then closes the overview.
+- Web addresses in a card are links. While a GitHub account is signed in, links
+  to GitHub issues and pull requests show as chips with title, number and
+  state, refreshed when the board is opened more than ten minutes later. Links
+  into private repositories need the `repo` scope (see [GitHub](#github)).
 
-A card can **repeat** every so many days, weeks or months, starting on a day you
-choose. On each scheduled day a copy of it is added to the top of **Todo**, due
-that day, and the repetition moves to the copy — so the newest copy is the one
-to edit or delete to change or stop it. A monthly card started on the 31st
-lands on the last day of shorter months and goes back to the 31st after them.
-If the shell was not running on a scheduled day, one copy is made when it next
-starts, for the most recent day missed.
+**Standup.** The megaphone lists your summaries; **New summary** writes one:
+cards moved to Finished since the last summary, everything In Progress (marked
+*started* if new), everything in Todo with due dates, and cards moved to
+Abandoned. The first covers the last 24 hours. Inbox and Google calendar
+meetings are left out. Select and copy with Ctrl+C (needs `wl-clipboard`).
+Nothing is sent anywhere.
 
-The search field at the top of the board filters every column down to the
-cards that match, and highlights what matched. It looks for any piece of text —
-the middle of a word counts, and case does not — in a card's title and details;
-with several words, a card has to contain all of them. **Ctrl+F** returns to the
-field, and **Escape** clears it before it closes the overview.
-
-A web address in a card's title or details is a link: clicking it opens the
-address in your browser rather than the card. While a GitHub account is signed
-in (Settings › **Accounts**), a link to a GitHub issue or pull request is drawn as
-a chip instead, with its title, its number and an icon for whether it is open, a
-draft, merged or closed; hovering over it says which repository it is in, and
-clicking it still opens the page. A title is read when the board first shows the
-card and read again when the board is opened more than ten minutes later, so
-the chips catch up with merges. A link GitHub will not answer for keeps its
-number, with a warning icon and the reason on hover — a link into a **private**
-repository needs the `repo` scope (see [GitHub](#github)).
-
-The megaphone at the top of the board opens your **standup** summaries, and
-**New summary** there writes one: what you moved to **Finished** since the last
-summary, everything in **In Progress** (marked *started* if it moved there since
-then), everything in **Todo** with its due date, overdue first, and anything you
-moved to **Abandoned** since then. The first time, it covers the last 24 hours.
-Opening the megaphone only shows the summaries already taken; it never writes a
-new one. It is plain text, for pasting into a chat: select it where it is (drag,
-double-click, or **Ctrl+A**) and copy with **Ctrl+C**, which needs
-`wl-clipboard`. A web address in a card's title shows up as a link, and
-clicking it opens it.
-**Inbox** is left out, and so are calendar events the Google sync put on the
-board — a meeting is not work to report. Nothing is sent anywhere.
-
-The board is kept in an SQLite database, `~/.local/share/moonswing/notes.db`
-(or under `$XDG_DATA_HOME`), not in `config.toml`, and saved as you go.  SQLite comes
-with the shell, so nothing needs installing. A board saved by an older version
-of the shell as `todo.json` is imported the first time, and the file is renamed
-to `todo.json.imported` rather than deleted. If the board cannot be read, it
-says why and refuses to save anything over it until it can. The module has no
-settings in `config.toml`.
+**Storage.** The board is saved as you go to
+`~/.local/share/moonswing/notes.db` (SQLite, bundled; or under
+`$XDG_DATA_HOME`). An old `todo.json` is imported once and renamed
+`todo.json.imported`. If the database cannot be read, the board says why and
+saves nothing until it can.
 
 #### Backups
 
-Every change is also written to a plain JSON backup,
-`~/.local/share/moonswing/backup/todo-backup.json`, and the line along the
-bottom of the board says where it is. If `notes.db` is missing when the shell
-starts, the board is restored from that file; if it is damaged, it is renamed
-to `notes.db.damaged-<time>` — never deleted — and rebuilt from the file. Either
-way the board says so, since anything changed after the backup was last written
-is not on it. A database written by a newer version of the shell is not
-damaged, and is left alone.
+Every change is also written to
+`~/.local/share/moonswing/backup/todo-backup.json`, shown at the bottom of the
+board.
 
-A backup on the same disk goes when the disk does, so keep a copy of that file
-somewhere else. Its folder holds nothing else, which makes it easy to keep in
-Git:
+- If `notes.db` is missing at start-up, the board is restored from the backup.
+  If it is damaged, it is renamed `notes.db.damaged-<time>` and rebuilt from
+  the backup. Either way the board tells you. A database from a newer shell
+  version is left alone.
+- The folder holds only that file, so you can keep it in Git. The file is
+  pretty-printed in board order and rewritten only on change, so each commit
+  is a clean diff. A symlink in its place is written through.
 
-```sh
-cd ~/.local/share/moonswing/backup
-git init
-git add todo-backup.json
-git commit -m "Todo backup"
-```
+  ```sh
+  cd ~/.local/share/moonswing/backup
+  git init
+  git add todo-backup.json
+  git commit -m "Todo backup"
+  ```
 
-The file is rewritten only when the board changes, pretty-printed with cards in
-board order and notes in the order they were made, so each commit is exactly
-what changed. Replacing the file with a symlink into a repository you already
-keep works too: it is written through the link.
-
-**Backups…** at the bottom of the board (or the cloud icon beside the search
-field) shows where the file is, and **Restore from this file…** replaces the
-board with it — for when you have put back an older one — after saving the
-current board beside it.
+- **Backups…** (or the cloud icon by the search field) shows the file, and
+  **Restore from this file…** replaces the board with it after saving the
+  current board beside it.
 
 #### Task list sync
 
-The board can be kept in step with a task list on a CalDAV server — Radicale,
-Baïkal, Nextcloud, ownCloud, Fastmail, iCloud and the like — so a phone
-(DAVx⁵ with jtx Board or Tasks.org) or another computer (Thunderbird,
-Evolution) can read and change the same cards. The board itself stays where it
-is: the database above is still what is on screen, it works offline, search
-still covers every card and note, and the backup file is still written.
+The board can sync with a CalDAV task list (Radicale, Baïkal, Nextcloud,
+Fastmail, iCloud, …), so phones (DAVx⁵ with jtx Board or Tasks.org) and other
+clients (Thunderbird, Evolution) share the cards. The local database stays the
+source of what is on screen and works offline.
 
-Sign in once under **Settings › Accounts › CalDAV** with the server's address
-(or the address of one calendar or task list), your user name and a password —
-an app password, where the server offers them. The shell asks the server for
-your calendars and task lists before keeping anything, so a wrong address or
-password is said there and then. **Add account** signs in to another server (or
-as another user on the same one) beside it; signing in again with an address
-and user name already listed replaces that account rather than listing it
-twice. The addresses and passwords are kept in
-`~/.local/state/moonswing/caldav-account.json` (or under `$XDG_STATE_HOME`),
-readable only by you, not in `config.toml`. The same accounts' calendars of
-events can be shown on the Calendar tab; see Calendar.
+**Sign in** under **Settings › Accounts › CalDAV** with the server or
+collection address, user name and password (an app password where offered). The
+server is checked before the account is saved. **Add account** adds another;
+signing in again with the same address and user replaces it. Credentials are
+stored, private to you, in `~/.local/state/moonswing/caldav-account.json`. The
+same accounts can show events on the [Calendar](#calendar) tab.
 
-The server's certificate is checked against the system's trust store
-(`/etc/ssl/certs`). A server that store cannot vouch for — self-signed, signed
-by your own CA, or serving its certificate without the intermediate that links
-it to a public one — is refused with `CERTIFICATE_VERIFY_FAILED`, and the form
-shows the certificate's SHA-256 fingerprint. Compare it with
-`openssl x509 -in cert.pem -noout -fingerprint -sha256` on the server; if they
-match, **Trust certificate and connect** pins that one certificate to the
-account (for an account already signed in, the card offers **Trust** beside
-it instead). Only it is trusted, not certificates in general, so a renewed
-self-signed certificate is refused again until it is trusted in turn. The
-alternative that needs no pin is to make the machine trust the server: have it
-serve its full chain, or add your CA to the system trust store
-(`update-ca-certificates` on Debian and Ubuntu, `trust anchor` on Fedora and
-Arch).
+**Self-signed certificates.** Certificates are checked against
+`/etc/ssl/certs`. One it cannot verify is refused with
+`CERTIFICATE_VERIFY_FAILED` and its SHA-256 fingerprint shown. Compare it with
+`openssl x509 -in cert.pem -noout -fingerprint -sha256` on the server, then
+click **Trust certificate and connect** (or **Trust** on an existing account).
+Only that exact certificate is pinned; a renewed one must be trusted again.
+Alternatively serve the full chain or add your CA to the system store
+(`update-ca-certificates` on Debian/Ubuntu, `trust anchor` on Fedora/Arch).
 
-Then open **Backups…** on the board, pick a list and **Link**. With more than
-one account signed in, every account's lists are offered, each named with its
-account, and the sync signs in with the account the list was found on. Linking
-*merges*: every card is sent to the list and every task on it comes to the
-board. With the switch beside it turned on it *replaces* the board instead —
-the cards are removed and the list's tasks take their place, after the board is
-saved beside the backup file as a restore does. **Unlink** stops the syncing
-and leaves both sides as they are.
+**Link** a list from **Backups…** on the board. With several accounts, every
+account's lists are offered. Linking merges both sides; with the switch on it
+replaces the board with the list instead (saving the board beside the backup
+first). **Unlink** stops syncing and changes nothing.
 
-What a task list holds of a card is its title, its notes, its column, its due
-day and a simple repeat. The columns are the task's status — Todo is
-*needs action*, In Progress *in process*, Finished *completed* and Abandoned
-*cancelled*; an Inbox card is *needs action* with a marker other apps keep and
-ignore. A repeat of every so many days, weeks, months or years goes both ways;
-anything more (say, every Monday and Wednesday) is left on the server as it
-is, and the card does not repeat on the board. The move history and the order
-within a column stay on this machine, and everything a task has that a card
-does not — alarms, categories, another app's own fields — stays on the server
-untouched: only the fields that changed are written back. Meetings the Google
-calendar sync put on the board are never sent.
+What syncs:
 
-The board syncs a few seconds after you change it, when you open it, when you
-press **Sync now**, and every five minutes while a list is linked — nothing at
-all when none is. A card changed on both sides since the last sync keeps each
-side's change where they touched different fields; where both changed the same
-field, the server's version is kept and the board lists the cards it happened
-to. A task deleted on the server takes its card with it, unless the card was
-changed here since, in which case it is sent back as a new task; a card deleted
-here is deleted there, unless the task was changed there since. A server that
-cannot be reached is shown in red along the bottom of the board, and nothing is
-lost: whatever did not get through goes on the next sync that does.
+- Title, notes, column, due day and simple repeats (every N days, weeks,
+  months or years). Columns map to status: Todo = *needs action*, In Progress
+  = *in process*, Finished = *completed*, Abandoned = *cancelled*; Inbox is
+  *needs action* plus a marker other apps ignore.
+- Complex repeats stay on the server; the card does not repeat.
+- Move history and in-column order stay local. Server fields the board doesn't
+  use (alarms, categories, …) are kept. Google calendar meetings are never
+  sent.
+
+When it syncs: a few seconds after a change, on opening the board, on **Sync
+now**, and every five minutes while a list is linked.
+
+Conflicts:
+
+- Changes to different fields on both sides are both kept. The same field
+  changed on both sides takes the server's value, and the board lists the
+  affected cards.
+- A task deleted on the server deletes its card, unless the card changed here
+  since (it is re-sent). A card deleted here deletes the task, unless the task
+  changed there since.
+- An unreachable server shows in red at the bottom of the board; pending
+  changes go on the next successful sync.
 
 ## Shortcuts
 
-The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are registered with the compositor (Mir's `ext-input-trigger` protocols), so they fire no matter which window has focus.
+`[shortcuts]` binds the shell's global shortcuts. They work whichever window has focus. They need a compositor with Mir's `ext-input-trigger` protocols (Miracle WM, Miriway); elsewhere none are registered.
 
 ```toml
 [shortcuts]
@@ -1122,118 +838,80 @@ move_to_scratchpad = "shift+super+z"
 power_button = "poweroff"
 ```
 
-| Key                    | Type   | Default              | Description                                    |
-| ---------------------- | ------ | -------------------- | ---------------------------------------------- |
-| `open_settings`        | string | `"super+s"`          | Opens (and closes) the settings overlay        |
-| `open_launcher`        | string | `"super+d"`          | Opens (and closes) the application launcher    |
-| `open_emoji`           | string | `"ctrl+shift+e"`     | Opens (and closes) the [emoji picker](#emoji-picker) |
-| `open_notifications`   | string | `"super+n"`          | Opens (and closes) the [notification panel](#notifications) |
-| `open_power_menu`      | string | `"shift+super+e"`    | Opens (and closes) the [power menu](#power-button) — shut down, restart, suspend, lock or log out |
-| `switch_windows`       | string | `"alt+tab"`          | Opens the [window switcher](#the-window-switcher) and moves forward through it |
-| `switch_windows_back`  | string | `"alt+shift+tab"`    | The same switcher, moving backwards |
-| `screenshot_area`      | string | `"print"`            | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
-| `record_screen`        | string | `"super+print"`      | Starts recording the screen you are on; press it again to stop |
-| `toggle_scratchpad`    | string | `"super+z"`          | Shows what is on the window manager's [scratchpad](#scratchpad), or hides it — the scratchpad module's own click |
-| `move_to_scratchpad`   | string | `"shift+super+z"`    | Moves the focused window to the scratchpad |
-| `power_button`         | string | `"poweroff"`         | The machine's own power button — what it *does* is [`[power]`](#power-button) |
+| Key                   | Default           | Action |
+| --------------------- | ----------------- | ------ |
+| `open_settings`       | `"super+s"`       | Toggle Settings |
+| `open_launcher`       | `"super+d"`       | Toggle the application launcher |
+| `open_emoji`          | `"ctrl+shift+e"`  | Toggle the [emoji picker](#emoji-picker) |
+| `open_notifications`  | `"super+n"`       | Toggle the [notification panel](#notifications) |
+| `open_power_menu`     | `"shift+super+e"` | Toggle the power menu |
+| `switch_windows`      | `"alt+tab"`       | [Window switcher](#the-window-switcher), forwards (Miracle WM only) |
+| `switch_windows_back` | `"alt+shift+tab"` | Window switcher, backwards (Miracle WM only) |
+| `screenshot_area`     | `"print"`         | Screenshot an area you drag out |
+| `record_screen`       | `"super+print"`   | Start recording the focused screen; press again to stop |
+| `toggle_scratchpad`   | `"super+z"`       | Show or hide the [scratchpad](#scratchpad) (Miracle WM only) |
+| `move_to_scratchpad`  | `"shift+super+z"` | Move the focused window to the scratchpad (Miracle WM only) |
+| `power_button`        | `"poweroff"`      | The machine's power button; what it does is set in [`[power]`](#power-button) |
 
-`record_screen` records the whole of the output holding the focused workspace, and needs no aim: nothing is put on screen first, so the recording opens on the desktop as it already is. On a shell that is not connected to the window manager — and so cannot tell which screen that is — it falls back to asking you to click the screen to record, which is what the recorder module's own **Select a screen** does.
+All values are strings.
+
+- **Changes need a shell restart.** Shortcuts are registered once at start-up.
+- Set a key to `""` or `"none"` to disable it (for example, when it clashes with an input method).
+- An invalid value falls back to the default and is logged.
+- If two keys use the same combination, only the first is registered. If another client already owns a combination, it is skipped and logged.
+- `record_screen` records the screen with the focused workspace. Without Miracle WM it asks you to click a screen instead.
 
 ### The window switcher
 
-`switch_windows` is the only shortcut here that is *held* rather than pressed. The first press puts an overlay on every screen showing an icon for each open window, five to a row; each further press of Tab moves the highlight, and letting go of Alt switches to whatever it is on. The full title of the highlighted window is written under the grid, which is what tells two windows of the same application apart. Escape, or a click on the backdrop, closes it without switching; a click on an icon switches to that window.
+Hold Alt and press Tab: an overlay lists open windows, most recent first. Press Tab again (or the arrow keys) to move; release Alt to switch. Escape or a click on the backdrop cancels; a click on an icon switches to that window. Switching to a window on another workspace changes workspace too.
 
-The list is ordered most-recently-used first, so the very first press lands on the window you were in before this one — tap and release to go back and forth between two windows. That ordering comes from the window manager, so a shell that is not connected to it offers the compositor's own order instead; everything else works the same.
+The switcher ends when the last held modifier is released, so a binding must include a modifier (`"f13"` alone would never close it).
 
-Rebinding is the usual thing with one constraint: **keep a modifier in it**. What ends the gesture is the modifier coming back up, so a binding with none — `switch_windows = "f13"` — would leave the switcher on screen with nothing to release. Both keys are read independently, so you can bind them to different modifiers, or set either to `""` to turn that direction off.
+### Changing shortcuts in the overview
 
-If the window that is picked is on another workspace, the shell switches to that workspace first and focuses the window second. Both go to the window manager as one request, so nothing can land in between.
+The keyboard icon on the bar opens the overview's **Shortcuts** tab. The shell's shortcuts are listed under **Shell**; click one and press a new combination:
 
-**Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
+- **Esc** cancels.
+- **Backspace** disables the shortcut.
+- The arrow beside a changed row restores the default.
 
-### Changing one without editing the file
-
-The keyboard icon on the bar opens the overview on its **Shortcuts** tab, and every one of the above is listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
-
-- **Esc** stops listening and changes nothing;
-- **Backspace** clears the shortcut, the same as writing `""` below;
-- the arrow beside a row you have changed puts it back on its default.
-
-Only the shell's own shortcuts can be changed from there. The window manager's bindings are on the same sheet but read-only — they are miracle's configuration, and they are edited under **Settings › Window Manager › Key Bindings**.
-
-What you press is written back into `config.toml` as the text you would have typed yourself, so the file stays readable and hand-editable. Two things the sheet says that the file cannot: it refuses a combination another of the shell's own shortcuts is already on (the second registration would silently never happen), and it warns — without refusing — when the window manager already uses that combination for something. And because registration latches at start-up, an edited row says so until the shell is restarted.
+The sheet refuses a combination another shell shortcut already uses and warns when the window manager uses it. Changes still need a restart. The window manager's own bindings are shown read-only; edit them under **Settings › Window Manager › Key Bindings**.
 
 ### Syntax
 
-A shortcut is modifiers and a key joined by `+`, in any case:
+Modifiers and one key joined by `+`, case-insensitive.
 
-| Part      | Accepted spellings                                    |
-| --------- | ----------------------------------------------------- |
-| Modifiers | `ctrl` / `control`, `shift`, `alt`, `super` / `meta` / `win` / `logo` |
-| Key       | a letter `a`–`z`, a digit `0`–`9`, `f1`–`f24`, or a named key |
+| Part      | Accepted |
+| --------- | -------- |
+| Modifiers | `ctrl`/`control`, `shift`, `alt`, `super`/`meta`/`win`/`logo` |
+| Key       | `a`–`z`, `0`–`9`, `f1`–`f24`, a named key, a raw keysym `0x…`, or an evdev keycode `code:N` |
 
-Named keys: `space`, `return` / `enter`, `tab`, `escape` / `esc`, `backspace`, `delete` / `del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `print`, `pause`, `menu`, `poweroff` / `power`, `sleep`, and the punctuation names `minus`, `equal`, `plus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `grave`, `bracketleft`, `bracketright`.
+Named keys: `space`, `return`/`enter`, `tab`, `escape`/`esc`, `backspace`, `delete`/`del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `print`, `pause`, `menu`, `poweroff`/`power`, `sleep`, and `minus`, `equal`, `plus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `grave`, `bracketleft`, `bracketright`.
 
-Left/right modifier variants are deliberately not offered: a trigger fires only when *exactly* the registered modifiers are held, so binding the left Control key would stop the shortcut working on the right one.
-
-**Shift must be written out.** `"ctrl+S"` means Ctrl and the S key — it is read identically to `"ctrl+s"`. Write `"ctrl+shift+s"` if you want Shift in the combination.
-
-### Layouts
-
-The compositor matches on the character your layout actually produces, so a shortcut containing `shift` is resolved before it is registered: `"ctrl+shift+s"` registers `S`, and `"ctrl+shift+1"` registers `!`. That resolution uses a **US layout** table. On other layouts, shifted digits and punctuation will be wrong — letters are fine everywhere.
-
-Two escape hatches cover the rest:
+- There are no left/right modifier variants; `ctrl` matches either Control key.
+- Write Shift explicitly: `"ctrl+S"` is the same as `"ctrl+s"`. Use `"ctrl+shift+s"`.
+- With `shift`, digits and punctuation are translated using a **US layout** (`"ctrl+shift+1"` registers `!`). On other layouts use a raw keysym or keycode:
 
 ```toml
 [shortcuts]
-open_settings = "ctrl+0x1b"      # a raw xkbcommon keysym
-open_settings = "ctrl+code:31"   # a raw evdev keycode — layout-independent
+open_launcher = "0x1008ff1b"       # raw keysym (XF86Search)
+open_settings = "super+code:31"    # evdev keycode: the physical S key, on any layout
 ```
-
-The `code:` form binds the physical key, so it keeps working when you switch layouts.
-
-### Disabling a shortcut
-
-Set it to an empty string (or `"none"`) to register nothing — useful when a combination collides with an input method such as fcitx or IBus:
-
-```toml
-[shortcuts]
-open_settings = ""
-```
-
-An unparseable value is not treated as "disabled": it falls back to the default and logs why, so a typo does not silently cost you a shortcut.
-
-If another client already owns a combination, the shell logs it and moves on — it never fails to start over a shortcut.
 
 ## Emoji Picker
 
-`Ctrl+Shift+E` opens a centred picker over whatever is on screen. Type to search, move with the arrow keys, and press **Enter** to copy the highlighted emoji and close. **Escape** — or a click on the backdrop — leaves without copying.
+`open_emoji` (Ctrl+Shift+E) opens a searchable emoji grid. Type to search, move with the arrow keys, press **Enter** to copy the highlighted emoji and close. **Escape** or a click on the backdrop closes without copying.
 
-The search is fuzzy and runs across every dimension an emoji has, so all four of these find 🍕:
+- Search matches the name, keywords, category or the emoji itself (`pizza`, `italian`, `food` and `🍕` all find 🍕).
+- Matching is fuzzy: letters only need to appear in order (`thmbs` finds "thumbs up"; `face joy` finds "face with tears of joy").
+- Exact matches rank first, then name over keywords over category.
+- Copying needs `wl-copy` from the **wl-clipboard** package. Without it, a notification says so.
 
-```
-pizza      →  its name
-food       →  its category
-italian    →  one of its keywords
-🍕          →  the character itself
-```
-
-Fuzzy means the letters need only appear *in order*: `gfws` finds "grinning face with sweat", `thmbs` finds "thumbs up". Spaces are ordinary characters here — the copy key is Enter, not Space — so a query may be several words, and those words need only appear in order too: `face joy` finds "face with tears of joy".
-
-A literal match always beats a scattered one, and the dimensions are weighted: the name first, then the keywords, then the category. So typing `cat` puts the cat face above the emoji merely filed under a *category*.
-
-Copying goes through `wl-copy`, from the **wl-clipboard** package. Wayland has no clipboard a client can write to without a seat, and the shell's surfaces are layer-shell ones, so there is no in-process route; if `wl-copy` is missing the picker says so in a notification rather than failing quietly.
-
-Rebind or disable it under [`[shortcuts]`](#shortcuts):
-
-```toml
-[shortcuts]
-open_emoji = "super+period"
-```
+To rebind it, see [Shortcuts](#shortcuts).
 
 ## Power Button
 
-The `[power]` section decides what pressing the machine's own power button does. Out of the box the shell intercepts it and shows the power menu — a dialog offering Lock, Log Out, Sleep, Restart and Shut Down — instead of the machine powering off where it stands.
+`[power]` sets what the machine's power button does. By default it shows the power menu (Lock, Log Out, Sleep, Restart, Shut Down) instead of powering off.
 
 ```toml
 [power]
@@ -1241,54 +919,36 @@ key_action = "menu"
 inhibit_logind = true
 ```
 
-| Key              | Type    | Default  | Description                                            |
-| ---------------- | ------- | -------- | ------------------------------------------------------ |
-| `key_action`     | string  | `"menu"` | What a press does                                      |
-| `inhibit_logind` | boolean | `true`   | Hold systemd-logind's `handle-power-key` lock while the shell handles the key |
+| Key              | Type    | Default  | Description |
+| ---------------- | ------- | -------- | ----------- |
+| `key_action`     | string  | `"menu"` | What a press does (below) |
+| `inhibit_logind` | boolean | `true`   | Stop systemd-logind acting on the key while the shell handles it |
 
-`key_action` takes one of:
+| `key_action` | Effect |
+| ------------ | ------ |
+| `"menu"`     | Show the power menu. Escape or a click outside cancels; Enter picks the highlighted action (Shut Down at first) |
+| `"shutdown"` | Power off immediately |
+| `"reboot"`   | Restart immediately |
+| `"suspend"`  | Suspend |
+| `"lock"`     | Lock the session |
+| `"logout"`   | End the session |
+| `"none"`     | Do nothing; logind handles the key as usual |
 
-| Value        | What happens                                                             |
-| ------------ | ------------------------------------------------------------------------ |
-| `"menu"`     | Show the power menu. Escape, or a click outside it, cancels; Enter answers with Shut Down |
-| `"shutdown"` | Power off, with no confirmation                                           |
-| `"reboot"`   | Restart, with no confirmation                                             |
-| `"suspend"`  | Suspend to RAM                                                            |
-| `"lock"`     | Lock the session                                                          |
-| `"logout"`   | End the session                                                           |
-| `"none"`     | Nothing — the key is left to systemd-logind, which is what handles it on a machine with no shell running |
+Also accepted: `off`/`poweroff` (shutdown), `restart` (reboot), `sleep` (suspend), `log_out`/`logoff` (logout), `dialog`/`power_menu` (menu), `ignore`/`disabled`/`""` (none). An unknown value falls back to `"menu"` and is logged.
 
-`"off"`, `"restart"`, `"sleep"` and `"ignore"` are accepted as spellings of `shutdown`, `reboot`, `suspend` and `none`. A value the shell does not recognise falls back to `"menu"` and logs why, rather than silently leaving you with a power button that does nothing.
+- Both keys apply live (Settings › Shell › Power Button). The key binding itself, `[shortcuts] power_button`, needs a restart.
+- The bar's power button and `open_power_menu` always open the menu, whatever `key_action` says.
+- With `inhibit_logind`, the shell holds logind's `handle-power-key` lock only while it actually owns the key, and drops it on exit or crash. A long press is left to logind.
+- Turn `inhibit_logind` off only if `logind.conf` already has `HandlePowerKey=ignore`; otherwise logind powers off behind the menu.
 
-Both keys are live: changing them in Settings → Shell → Power Button takes effect on the next press. The *binding* — `[shortcuts] power_button` — is not, because global shortcuts are registered once at start-up.
+If the button does nothing:
 
-`key_action` is about the *physical* key alone. The panel's power icon and the [`open_power_menu`](#shortcuts) shortcut (`Super+Shift+E`) always open the power menu, whatever this is set to — including `"none"`, which leaves the key to logind without leaving you with no way to shut down from the shell.
-
-### Why `inhibit_logind` exists
-
-systemd-logind watches the power button directly, and `HandlePowerKey` in `logind.conf` is `poweroff` on a stock system. It does not care that a compositor also delivered the key to the shell — so a shell that only listened would draw its power menu onto a machine that was already going down.
-
-While the shell is handling the key it therefore takes logind's `handle-power-key` inhibitor lock, in `block` mode, which stops logind acting on presses for as long as the shell holds it. The lock is released the moment the shell exits — including if it crashes — so it can never leave a machine that will not power off.
-
-Two things it deliberately does **not** claim: `handle-power-key-long-press` (holding the button down keeps doing whatever logind is configured to do, which is the "get me out of here" gesture), and the key on a compositor that never delivered it. The shell takes the lock only once the compositor has confirmed the shortcut registration, so on a compositor without Mir's `ext-input-trigger` protocols — or where another client already owns the key — the button keeps working exactly as it did before.
-
-Turn `inhibit_logind` off if your `logind.conf` already says `HandlePowerKey=ignore`; otherwise, with it off, logind's shutdown and the shell's dialog race.
-
-### If the button does nothing
-
-- Check that the compositor is delivering it: the shell logs `input-trigger: "moonswing.power-button" owned` on start-up when it has the key, and says so when another client owns it instead.
-- Some keyboards' power keys emit a keysym this table's `poweroff` does not match. Bind the physical key instead, which is layout- and keysym-independent:
-
-  ```toml
-  [shortcuts]
-  power_button = "code:116"   # evdev KEY_POWER
-  ```
-
-- A laptop lid or a "sleep" key is a different key entirely (`sleep`, `code:142`); this section is only about the power button.
+- Check the log for `input-trigger: "moonswing.power-button" owned` at start-up; another client may own the key instead.
+- If your power key sends a different keysym, bind the physical key: `power_button = "code:116"` (evdev `KEY_POWER`).
 
 ## Authentication Prompts
 
-The `[polkit]` section decides whether the shell answers polkit's authentication requests — the "Authentication required" dialog you get when something asks for administrator rights.
+`[polkit]` makes the shell the session's polkit agent: the "Authentication required" dialog shown when an application asks for administrator rights. Without an agent, those requests are refused silently. Miracle WM ships none.
 
 ```toml
 [polkit]
@@ -1296,62 +956,53 @@ enabled = true
 max_attempts = 3
 ```
 
-| Key            | Type    | Default | Description                                                    |
-| -------------- | ------- | ------- | -------------------------------------------------------------- |
-| `enabled`      | boolean | `true`  | Register as this session's polkit authentication agent          |
-| `max_attempts` | integer | `3`     | How many times the password may be refused before the dialog gives up (clamped to 1–5) |
+| Key            | Type    | Default | Description |
+| -------------- | ------- | ------- | ----------- |
+| `enabled`      | boolean | `true`  | Register as the polkit authentication agent |
+| `max_attempts` | int     | `3`     | Wrong passwords allowed before the dialog gives up (1–5) |
 
-### What this is for
+- Read at start-up; restart the shell to apply.
+- Escape, a click outside, or Cancel denies the request.
+- If another agent is already registered when the shell starts, the shell leaves it alone. Set `enabled = false` if your agent starts after the shell.
+- With `enabled = false` and no other agent, nothing can ask for administrator rights.
 
-polkit never asks anybody anything by itself. When an application requests a privileged operation — changing the system keyboard layout, mounting a disk, installing an update — polkitd looks for an *authentication agent* registered for your session and asks it to get the password. With no agent registered there is nothing to ask, so every one of those requests is refused immediately, which usually surfaces as a setting that silently refuses to change.
+If prompts do not appear:
 
-Most desktops ship one (`polkit-gnome`, `mate-polkit`, `lxpolkit`). miracle-wm does not, which is why the shell is one.
-
-The prompt is a dialog in the middle of the screen, in your theme: what is being asked, which account is answering, and a field for the password. Escape, a click outside it, or Cancel all *refuse* the request — dismissing is denying, not deferring.
-
-### Turning it off
-
-The shell yields automatically if it finds an agent already registered when it starts: that session already has working prompts, and two agents fighting over the registration is how one of them silently stops prompting. `enabled = false` is for the other ordering — an agent that starts *after* the shell, which would otherwise find the registration taken.
-
-With `enabled = false` and no other agent running, nothing on the desktop can ask for administrator rights.
-
-### If prompts do not appear
-
-- The shell logs `polkit: registered as the authentication agent for session <id>` on start-up, and says so when another agent has the registration instead.
-- The password is checked by `polkit-agent-helper-1`, a small setuid program that ships with polkit itself. If it is missing the dialog says so rather than failing silently; install polkit (`polkitd` on Debian and Ubuntu, `polkit` on Fedora, Arch and openSUSE).
-- Registration needs a logind session. If `echo $XDG_SESSION_ID` prints nothing and `loginctl` does not know about your session, polkit has nothing to register an agent *for*.
+- Look for `polkit: registered as the authentication agent for session <id>` in the log.
+- The password check needs `polkit-agent-helper-1`, part of polkit (`polkitd` on Debian/Ubuntu, `polkit` on Fedora, Arch, openSUSE). The dialog says if it is missing.
+- A logind session is required: `echo $XDG_SESSION_ID` must print something.
 
 ## Theme
 
-Themes live in their own files, one per theme, under `~/.config/moonswing/themes/`. `config.toml` picks one by name — the file's basename without `.toml`:
+A theme is a file of its own under `~/.config/moonswing/themes/`. `config.toml` picks one by its filename without `.toml`:
 
 ```toml
 theme = "dracula"
 ```
 
-Seven themes ship with the shell and are written into that directory the first time it starts:
+Seven themes ship with the shell:
 
-| Name       | Looks like                                                        |
-| ---------- | ----------------------------------------------------------------- |
-| `glassy`   | Cool translucent surfaces that let the wallpaper through. The default. |
-| `forest`   | A carved oak beam on mossy capstones, overgrown with ivy, moss and ferns that hang over your windows — and every menu a bark-rimmed trunk that sprouts out of the beam on spreading roots. |
-| `autumn`   | Forest in October: a smooth chestnut beam between log ends, the screen's top corners framed in turning maple and oak, pumpkin patches along a bottom bar, and the same trunk-like menus in bark and walnut. |
-| `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
-| `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
-| `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
-| `classic95` | The desktop of 1995: a battleship-grey taskbar with a white top edge, square grey menus raised on a hard black edge, navy for the one colour and a solid teal desktop. The only light theme. |
+| Name        | Looks like                                                                 |
+| ----------- | -------------------------------------------------------------------------- |
+| `glassy`    | Cool translucent islands floating over the wallpaper. The default.          |
+| `forest`    | A carved oak beam on mossy capstones, overgrown with ivy and ferns; menus grow out of it like bark-rimmed trunks. |
+| `autumn`    | Forest in October: a chestnut beam, turning leaves in the top corners, pumpkins along a bottom bar. |
+| `dracula`   | The [Dracula](https://draculatheme.com) palette.                            |
+| `midnight`  | Indigo, one type size up, with cards that glow instead of casting a shadow. |
+| `carbon`    | Flat, square graphite; bar menus grow out of the bar on a flared join.      |
+| `classic95` | The 1995 desktop: grey taskbar, raised square menus, teal desktop. The only light theme. |
 
-Each comes with a desktop wallpaper of its own — the full moon for `glassy`, solid teal for `classic95`, and for the others a photograph from the Ubuntu wallpaper contests (credited in `assets/CREDITS.md`). While the **Theme default** wallpaper is selected under Settings → Shell → Background, switching theme switches the desktop to the new theme's; see [The theme's wallpaper](#the-themes-wallpaper).
+Each comes with its own wallpaper, shown while the **Theme default** wallpaper is selected — see [The theme's wallpaper](#the-themes-wallpaper).
 
-If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
-
-The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The shipped themes are read-only there — editing one offers to duplicate it first.
-
-Because the shell owns those six files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
+- The easy way in is **Settings › Shell › Theme**: pick a theme (applies at once), edit any key live, or **New theme…**.
+- The shipped themes are read-only. The shell rewrites their files on every start, so hand edits to `dracula.toml` are lost. Editing one in Settings makes a copy (**Duplicate to edit**); your own files are never touched.
+- If `theme` is missing, names no file, or names a file that does not parse, you get `glassy`. A single bad value inside a theme costs only that key.
+- **Switching** themes blends the colours and `font_size` over a moment; everything else (geometry, fonts, icons, animations, materials and their tints) changes at once. Editing a key applies immediately.
+- An old inline `[theme]` table in `config.toml` is ignored and gives you `glassy`. To keep it, move its contents (without the `[theme]` line) into `themes/mine.toml` and set `theme = "mine"`.
 
 ### Writing a theme file
 
-A theme file is a flat table — no section header. Every key is optional.
+A theme file is a flat table with no section header. Every key is optional.
 
 ```toml
 # ~/.config/moonswing/themes/gruvbox.toml
@@ -1360,7 +1011,6 @@ name = "Gruvbox"
 font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
-blur = 24.0
 
 accent               = "#458588"
 foreground           = "#EBDBB2"
@@ -1379,483 +1029,293 @@ panel_background     = "#EE282828"
 panel_gradient       = "accent"
 panel_margin         = 0
 panel_radius         = 0.0
-panel_corners        = "auto"
-panel_join_radius    = 0.0
-panel_join           = false
-panel_square_flush_corners = false
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
-panel_sections       = false
-panel_section_background = "#EE282828"
-panel_section_gradient = "none"
-panel_section_radius = 8.0
-panel_section_padding = 8.0
-panel_section_border = "#33EBDBB2"
-panel_section_border_width = 0.0
-
 popup_radius         = 8.0
 popup_gap            = 0.0
-popup_attach_radius  = 0.0
 popup_border         = "#33EBDBB2"
 popup_border_width   = 1.0
-
 popup_shadow_color   = "#66000000"
-popup_shadow_blur    = 16.0
-popup_shadow_spread  = 0.0
-popup_shadow_offset_x = 0.0
-popup_shadow_offset_y = 6.0
-
 popup_animation      = "slide"
-popup_animation_duration = 120
 
 overlay_radius       = 12.0
-overlay_aspect       = 1.5
-
 overlay_animation    = "scale"
-overlay_animation_duration = 130
-overlay_animation_exit_ratio = 0.8
-overlay_animation_curve = "ease_out"
 ```
 
-Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
+Colours are `#RRGGBB` or `#AARRGGBB` (`AA` is alpha: `"#33FFFFFF"` is white at ~20%). Alpha is how a theme becomes translucent; there is no blur key.
 
-| Key                    | Default       | Description                                                                 |
-| ---------------------- | ------------- | --------------------------------------------------------------------------- |
-| `name`                 | the filename  | Display name shown in the settings picker                                   |
-| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
-| `font_size`            | `13.0`        | Size of the shell's body text, in logical pixels, and with it the whole type scale — labels, captions and headings keep their proportions either side of it. Clamped to 6–32. See the note below |
-| `icon_pack`            | `font_awesome` | Which icon font draws the interface icons: `font_awesome`, `material_rounded`, `material_outlined`, `material_sharp`, `lucide` or `remix`. An icon a pack has no drawing for falls back to Font Awesome's. See the note below |
-| `wallpaper`            | `""`          | The desktop wallpaper this theme comes with: a path, absolute, under `~/`, a name beside the theme file, or the bare name of one the shell installs. Empty means none. Shown by a `theme = true` background entry — see [The theme's wallpaper](#the-themes-wallpaper) |
-| `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
-| `accent`               | `#853953`     | Selected workspace, slider fill, selection highlights, chart series (see the note below) |
-| `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
-| `surface_hover`        | `#853953`     | Button background when hovered                                              |
-| `surface_pressed`      | `#612D53`     | Button background when pressed; the mid stop of the panel gradient          |
-| `workspace_background` | `#2C2C2C`     | The workspaces pod; the dark end of the panel gradient                      |
-| `popup_background`     | `#2C2C2C`     | Background of popups, flyouts, menus, the OSD card and the overlay panel    |
-| `popup_foreground`     | `#F3F4F4`     | Text and icons inside popups                                                |
-| `control_surface`      | `#39393D`     | Cards, inputs and tiles inside popups and the settings pages                |
-| `slider_track`         | `#612D53`     | The unfilled portion of sliders and usage bars                              |
-| `muted`                | `#C4A8B2`     | Secondary, de-emphasised text: menu headers, timestamps, units, greyed rows |
-| `divider`              | `#33F3F4F4`   | Separator lines, and the resting fill of subtle list rows (supports alpha)  |
-| `notification_badge`   | `#F2B441`     | What an unread notification is announced in (see the note below)           |
-| `notification_badge_foreground` | `#2C1218` | Text and glyphs drawn on `notification_badge`                           |
-| `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
-| `panel_gradient`       | `accent`      | The bar's shape: `none` (flat `panel_background`), `accent` (a fade from `accent`) or `corners` (a colour in each corner) — see below |
-| `panel_gradient_top_left` | `#EE853953` | Under `panel_gradient = "corners"`, the colour of the bar's top-left corner, at its own alpha |
-| `panel_gradient_top_right` | `#EE612D53` | …its top-right corner                                                    |
-| `panel_gradient_bottom_right` | `#EE2C2C2C` | …its bottom-right corner                                             |
-| `panel_gradient_bottom_left` | `#EE612D53` | …its bottom-left corner                                               |
-| `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to: one number, or a table giving each side of the bar its own (see below) |
-| `panel_radius`         | `0.0`         | Corner rounding of each bar, at the corners `panel_corners` picks: one number, or a table giving each corner its own (see below) |
-| `panel_corners`        | `auto`        | Which corners `panel_radius` rounds: `auto`, `all`, `none`, or a list of `top_left`, `top_right`, `bottom_right`, `bottom_left` (see below) |
-| `panel_join_radius`    | `0.0`         | Rounds the inside of the corner where two flush bars meet; `0`–`64` (see below) |
-| `panel_join`           | `false`       | Makes the bars one frame round the screen: every top or bottom bar meets the side bars, whatever the margins, which are then the screen's (see below) |
-| `panel_square_flush_corners` | `false` | Leaves square every corner on a screen edge the bar touches, with no margin between them (see below) |
-| `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
-| `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
-| `panel_sections`       | `false`       | Draws each section of the bar — its left, centre and right groups — as an island of its own, tightly round what it holds (see [Sections as islands](#sections-as-islands)) |
-| `panel_section_background` | `#EE2C2C2C` | Each island's fill, at its own alpha                                     |
-| `panel_section_gradient` | `none`      | Each island's shape: `none`, `accent` or `corners`, as `panel_gradient` is the bar's |
-| `panel_section_radius` | `8.0`         | Each island's corner rounding; past half its depth it is a capsule; `0`–`64` |
-| `panel_section_padding` | `8.0`        | How far each island reaches past its first and last module along the bar; `0`–`64` |
-| `panel_section_border` | `#33F3F4F4`   | Each island's rim color; drawn only when `panel_section_border_width` is above zero |
-| `panel_section_border_width` | `0.0`   | Each island's rim thickness, or `0` for no rim                              |
-| `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
-| `popup_gap`            | `0.0`         | Pixels between a bar popup and the bar; `0` attaches it to the bar          |
-| `popup_attach_radius`  | `0.0`         | How far an attached popup flares outward into the bar; read only at gap `0` |
-| `popup_border`         | `#33F3F4F4`   | Their rim color; drawn only when `popup_border_width` is above zero        |
-| `popup_border_width`   | `1.0`         | Their rim thickness, or `0` for no rim                                     |
-| `popup_shadow_color`   | `#66000000`   | Their shadow's color; an alpha of `0` turns the shadow off entirely        |
-| `popup_shadow_blur`    | `16.0`        | How far the shadow's falloff reaches past the card (CSS's blur radius)     |
-| `popup_shadow_spread`  | `0.0`         | How far the shadow's shape is grown before blurring; negative shrinks it   |
-| `popup_shadow_offset_x`| `0.0`         | Horizontal displacement; positive is right, negative is left               |
-| `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
-| `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
-| `popup_animation_duration` | `120`     | How long that entrance runs, in milliseconds; the exit takes three quarters of it |
-| `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: the overview, the launcher (see below) |
-| `overlay_aspect`       | `1.5`         | The overview's width over its height: `1` is square, below it taller, above it wider (see below) |
-| `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
-| `overlay_animation_duration` | `130`   | How long *that* entrance runs, in milliseconds                             |
-| `overlay_animation_exit_ratio` | `0.8` | What fraction of the entrance the overlay's exit takes                     |
-| `overlay_animation_curve` | `ease_out` | The easing the overlay's animation is paced on                             |
-| `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
-| `panel_texture`        | `none`        | What the bar is made of: `none`, `wood`, `stone`, `bark` or `moss` (see below) |
-| `panel_texture_color`  | `#6B4A2E`     | The tint the bar's material is drawn in; its **alpha is the material's strength** |
-| `panel_end_texture`    | `none`        | A second material capping each end of the bar                               |
-| `panel_end_color`      | `#6E726B`     | The tint of the end caps; alpha is their strength                           |
-| `panel_end_length`     | `0.0`         | How far along the bar each cap reaches; `0` draws none                      |
-| `panel_bevel`          | `0.0`         | How deeply the bar's edges are carved, from `0` (flat) to `1`               |
-| `panel_image`          | `""`          | A picture tiled over the bar in place of `panel_texture` (see below)        |
-| `panel_foliage`        | `none`        | What grows off the bar: `none`, `ivy`, `moss`, `wildwood` or `harvest` (see below) |
-| `foliage_color`        | `#3E7A3A`     | The canopy's colour; every leaf is jittered off it (in `harvest`, what is still green) |
-| `foliage_bloom`        | `#E0A13A`     | Berries and flowers among the leaves (in `harvest`, the colour leaves turn and pumpkins are) |
-| `foliage_density`      | `1.0`         | How much grows, as a multiple of the style's own amount; `0`–`3`            |
-| `panel_overhang`       | `0`           | How far the foliage may hang past the bar, over the windows beneath; `0`–`160` |
-| `popup_texture`        | `none`        | What a popup card is made of, under its content                             |
-| `popup_texture_color`  | `#206B4A2E`   | Its tint; alpha is its strength, and a card is read, so keep it low          |
-| `popup_border_texture` | `none`        | What a popup card's rim is made of, in place of `popup_border`'s flat colour |
-| `popup_border_texture_color` | `#5A4030` | The rim material's tint                                                  |
-| `popup_image`          | `""`          | A picture tiled over a popup card in place of `popup_texture`               |
-| `popup_roots`          | `0.0`         | How far roots spread along the bar from an attached popup; read only at gap `0` |
+| Key                    | Type   | Default        | Description |
+| ---------------------- | ------ | -------------- | ----------- |
+| `name`                 | string | the filename   | Name shown in the theme picker |
+| `font`                 | string | `Ubuntu Sans`  | Font family for all shell text (any fontconfig family) |
+| `font_size`            | float  | `13.0`         | Body text size in logical pixels; the whole type scale follows it. 6–32 |
+| `icon_pack`            | enum   | `font_awesome` | Interface icon font; see below |
+| `wallpaper`            | string | `""`           | The theme's wallpaper; see [The theme's wallpaper](#the-themes-wallpaper) |
+| `accent`               | colour | `#853953`      | Focused workspace, slider fill, selections, charts |
+| `foreground`           | colour | `#F3F4F4`      | Text and icons on the bar |
+| `surface_hover`        | colour | `#853953`      | Button background on hover |
+| `surface_pressed`      | colour | `#612D53`      | Button background when pressed; middle of the `accent` gradient |
+| `workspace_background` | colour | `#2C2C2C`      | The workspaces pod |
+| `popup_background`     | colour | `#2C2C2C`      | Popups, menus, the OSD and the overview |
+| `popup_foreground`     | colour | `#F3F4F4`      | Text and icons in popups |
+| `control_surface`      | colour | `#39393D`      | Cards, inputs and tiles in popups and Settings |
+| `slider_track`         | colour | `#612D53`      | Unfilled part of sliders and usage bars |
+| `muted`                | colour | `#C4A8B2`      | Secondary text: headers, timestamps, units |
+| `divider`              | colour | `#33F3F4F4`    | Separator lines, and the fill of quiet rows — give it enough alpha to read as a surface |
+| `notification_badge`   | colour | `#F2B441`      | Unread notifications: the floating badge, the bell's count, the unread dot |
+| `notification_badge_foreground` | colour | `#2C1218` | Text on `notification_badge` |
+| `scrim`                | colour | `#882C2C2C`    | Wash over the screen behind a full-screen overlay |
 
-Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
+Notes:
 
-**`accent` is a fill, and the shell derives its own reading colour from it.** The accent is picked to be *filled* — a primary button, the focused workspace, the travelled half of a slider — which means it has to be dark enough to carry white. A colour dark enough for that is rarely light enough to be read as a *label* on a dark card: the shell's own `#853953` holds white at 7.8:1 and then lands on its own popup at 1.8:1. So anything writing in the accent — a checked menu row, the current tab, today's date, a section heading in the settings pages — is drawn in the accent moved along its own lightness ramp until it clears 4.5:1 against `popup_background`, keeping its hue and saturation. There is no key for this and nothing to set: an accent that already reads as text is used exactly as written, and one that does not is lifted only as far as it has to be. Fills, rims and washes are never touched, so the colour you chose is still the colour that gets filled.
+- **`accent` is a fill colour.** Where the shell writes text in the accent (a checked row, the current tab, today's date), it lightens it as far as needed to read on `popup_background`. There is nothing to set.
+- **`font_size`** scales text only — in the bar, popups, overlays and desktop widgets. Bar thickness is `[panels.<name>] height`; raise it with a much larger font. Icons keep their size.
+- **`notification_badge`** is meant to be louder than the rest of the palette; the shipped themes use a hue they use nowhere else.
 
+**`icon_pack`** values:
 
-`notification_badge` is deliberately not `accent`. The accent is the bar's ordinary "this one is active" — it is on the focused workspace, on every hovered button and on half the controls in the settings panel — and the floating card that plants itself in the corner of every output would read as more of the same furniture wearing it. This is the one colour in the shell that is allowed to be louder than the rest of the palette, so every shipped theme spells it as a hue that theme does not otherwise use. It is worn by the floating card, the bell's unread count and the dot on an unread message, so those three cannot disagree about what "unread" looks like.
+| Value               | Pack                      | Look |
+| ------------------- | ------------------------- | ---- |
+| `font_awesome`      | Font Awesome Free         | Solid, heavy glyphs. The default and every pack's fallback |
+| `material_rounded`  | Material Symbols Rounded  | Rounded corners and ends |
+| `material_outlined` | Material Symbols Outlined | Outlined, crisp corners |
+| `material_sharp`    | Material Symbols Sharp    | Square corners and ends (`classic95` uses it) |
+| `lucide`            | Lucide                    | Thin, even strokes, no filled forms |
+| `remix`             | Remix Icon                | Neutral line icons, filled for "on" states |
+
+An icon a pack lacks (brand logos under Material Symbols and Lucide, for example) is drawn from Font Awesome. Icons keep the same size under every pack. Application, tray and file icons come from your desktop icon theme, and weather pictures are their own; neither changes with this key.
 
 ### The panel
 
-The bar has its own color, `panel_background`, and its alpha is used exactly as written — this is the surface that sits directly on the desktop, so it is the one that decides how much of your wallpaper shows through.
+These keys shape every bar. All of them apply live.
 
-`panel_gradient` decides its shape:
+| Key                    | Type   | Default     | Description |
+| ---------------------- | ------ | ----------- | ----------- |
+| `panel_background`     | colour | `#EE2C2C2C` | The bar's fill; its alpha is the whole bar's opacity |
+| `panel_gradient`       | enum   | `accent`    | `none` (flat), `accent` (fade from `accent`) or `corners` (a colour per corner) |
+| `panel_gradient_top_left` | colour | `#EE853953` | Top-left colour under `corners` |
+| `panel_gradient_top_right` | colour | `#EE612D53` | Top-right colour under `corners` |
+| `panel_gradient_bottom_right` | colour | `#EE2C2C2C` | Bottom-right colour under `corners` |
+| `panel_gradient_bottom_left` | colour | `#EE612D53` | Bottom-left colour under `corners` |
+| `panel_margin`         | int or table | `0`   | Gap between the bar and the screen edges, 0–256; see [Floating the bar](#floating-the-bar) |
+| `panel_radius`         | float or table | `0.0` | Corner rounding, 0–64 |
+| `panel_corners`        | string or list | `auto` | Which corners round: `auto`, `all`, `none`, or a list of `top_left`, `top_right`, `bottom_right`, `bottom_left` |
+| `panel_square_flush_corners` | bool | `false` | Keep square every corner that touches a screen edge with no margin |
+| `panel_border`         | colour | `#33F3F4F4` | Rim colour |
+| `panel_border_width`   | float  | `0.0`       | Rim thickness, 0–16; `0` is no rim |
+| `panel_join_radius`    | float  | `0.0`       | Fillet where two bars meet, 0–64; see [Where two bars meet](#where-two-bars-meet) |
+| `panel_join`           | bool   | `false`     | Join all bars into one frame; see [Where two bars meet](#where-two-bars-meet) |
 
-- **`"none"`** — a flat sheet of `panel_background`. This is what `dracula` does.
-- **`"accent"`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
-- **`"corners"`** — a colour of its own in each of the bar's four corners, `panel_gradient_top_left`, `panel_gradient_top_right`, `panel_gradient_bottom_right` and `panel_gradient_bottom_left`, blended smoothly across the whole bar. `midnight` lights each of its islands this way, with `panel_section_gradient` — see [Sections as islands](#sections-as-islands).
+- **`accent` gradient:** fades from `accent` at the bar's start (left of a top bar, top of a side bar) through `surface_pressed` to `panel_background`, every stop at `panel_background`'s alpha. `panel_background = "#402C2C2C"` makes the whole bar 25% opaque. `true`/`false` from older themes read as `accent`/`none`.
+- **`corners` gradient:** each colour keeps its own alpha and they blend across the bar. Corners are the screen's, so every bar is lit from the same side. Matching the two left and the two right corners gives a left-to-right fade:
 
-The key used to be a boolean, and a theme that still says `true` or `false` reads as `"accent"` or `"none"`; the settings editor writes the name back.
+  ```toml
+  panel_gradient = "corners"
+  panel_gradient_top_left     = "#EE853953"
+  panel_gradient_bottom_left  = "#EE853953"
+  panel_gradient_top_right    = "#EE2C2C2C"
+  panel_gradient_bottom_right = "#EE2C2C2C"
+  ```
 
-Four corners is a gradient in any direction, and which direction is which corners you make alike:
-
-```toml
-panel_gradient = "corners"
-
-# Left to right: the two left corners match, and so do the two right ones.
-panel_gradient_top_left     = "#EE853953"
-panel_gradient_bottom_left  = "#EE853953"
-panel_gradient_top_right    = "#EE2C2C2C"
-panel_gradient_bottom_right = "#EE2C2C2C"
-
-# A diagonal instead: set the two corners across from each other to the two
-# ends, and the other two to a colour halfway between them.
-```
-
-The blend is bilinear: along every edge it is a straight fade between that edge's two corners, and inside the bar it is those fades blended into each other, so four different colours give a wash that runs in no single direction. The corners are the bar's **as it sits on the screen**, whichever edge it is anchored to — a left bar's top-left corner is at the top of the screen — so a theme lit from one corner of the display is lit from there on every bar at once. Bars are long and thin, so the left-to-right pair of a top bar spreads across the whole screen while the top-to-bottom pair is a sheen across its few dozen pixels of depth.
-
-A translucent bar shows the wallpaper the shell itself draws (`[background]`). Over a bare desktop with no `[background]` section there is nothing behind the bar but whatever your compositor paints, which may simply be black.
-
-In `"accent"` mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
+- **Rim:** width is the switch, not alpha. The rim is left off any side flush against the screen edge. A 1px rim helps a translucent bar stand out from a busy wallpaper.
+- A translucent bar shows the shell's own wallpaper (`[background]`); without one, whatever the compositor paints (often black).
 
 ### Floating the bar
 
-`panel_margin` moves each bar away from the screen edges it is anchored to, turning a full-bleed strip into a floating pane. This is what `glassy` does, at `8`.
+`panel_margin` moves each bar off the screen edges it is anchored to (`glassy` uses `8`). The gap is real: windows do not tile into it, and clicks there reach the desktop. Reserved space grows with the margin — a 32px bar with an 8px margin keeps windows 40px from the edge.
 
-The gap is real, not painted: the bar's surface genuinely shrinks, so **windows will not tile into it** and **clicks that land in the gap reach the desktop** rather than being swallowed by an invisible part of the bar. The space the bar reserves grows with the margin automatically — a 32px bar with an 8px margin keeps maximized windows 40px clear of the screen edge.
-
-Each side of the bar can have a margin of its own, written as a table instead of one number; a side left out of the table is `0`:
+A table gives each side its own margin; a side left out is `0`:
 
 ```toml
-# Every bar's far end floats 8px short of the screen's side; the rest are flush.
+# Every bar's far end stops 8px short; everything else is flush.
 panel_margin = { top = 0, right = 8, bottom = 0, left = 0 }
 ```
 
-The sides are the **bar's**, so a name always means the same part of a bar, whichever edge it is on. On a top or bottom bar they are the screen's: `top` and `bottom` are its long sides and `left` and `right` its ends. A left or right bar is a top bar turned a quarter turn anticlockwise:
+Sides are named in the **bar's own frame**. A side bar is a top bar turned a quarter turn anticlockwise:
 
-| Key      | Top or bottom bar  | Left or right bar                       |
-|----------|--------------------|-----------------------------------------|
-| `right`  | its right-hand end | its **top** end                         |
-| `left`   | its left-hand end  | its **bottom** end                      |
-| `top`    | its top side       | its side towards the screen's left edge |
-| `bottom` | its bottom side    | its side towards the screen's right edge |
+| Key      | Top or bottom bar | Left or right bar |
+| -------- | ----------------- | ----------------- |
+| `right`  | right end         | **top** end       |
+| `left`   | left end          | **bottom** end    |
+| `top`    | top side          | side towards the screen's left |
+| `bottom` | bottom side       | side towards the screen's right |
 
-So `right` is always a bar's far end, and with the table above a top bar stops 8px short of the screen's right edge and a side bar 8px short of its top. Each bar is floated off the screen edge it sits on by the side against that edge — `top` for a top or left bar, `bottom` for a bottom or right one — and its ends by `left` and `right`; the side facing the middle of the screen has nothing to push against and is not read. A margin that is the same on every side is written back as one number, as it always was, and means the same thing either way.
+So `right` is always the far end. Only the side against the screen edge and the two ends are read; the side facing the screen's middle is ignored.
 
-Because each bar reads its own frame, a top bar and a side bar meeting in a corner read that corner from different keys: in the top-left, the top bar's `top` and `left` and the left bar's `top` and `right` (its top end). They are flush there — and can join, see [Where two bars meet](#where-two-bars-meet) — only when all three are `0`. Under `panel_join` none of this applies: the bars are one frame, and its margins and corners are named as the screen's — see [Joining the bars](#joining-the-bars).
-
-`panel_radius` rounds the bar's corners, and `panel_corners` says which. Like the margin, the radius is one number for every corner or a table giving each its own, a corner left out being `0`:
+**Corners** use the same frame: `top_right` is where the bar's `top` side meets its `right` end. `panel_radius` takes one number or a table:
 
 ```toml
-panel_radius = { top_left = 0, top_right = 12, bottom_right = 12, bottom_left = 4 }
-```
-
-Corners are named in the same frame as the margin's sides: `top_right` is where the bar's `top` side meets its `right` end, which on a side bar is its top end, on the side towards the screen's left — the screen's top-left corner. A corner with a radius of `0` stays square whatever `panel_corners` says. Under the default, `"auto"`:
-
-- **The two corners facing the middle of the screen** always round.
-- **A corner against the screen edge** rounds only where the bar is off the display's own corner there — the bar floats off the edge it sits on, or that end of it stops short of the screen's side. A flush bar with rounded outer corners would cut wallpaper wedges out of the display's own corners, which reads as misalignment rather than styling.
-
-So a bar with the same margin above zero on every side rounds all four corners, a flush one rounds only the inner two, and a bar flush at one end and floating at the other rounds both corners at the floating end.
-
-To pick the corners yourself, give `panel_corners` a list, or `"all"` or `"none"`:
-
-```toml
+panel_radius  = { top_left = 0, top_right = 12, bottom_right = 12, bottom_left = 4 }
 panel_corners = ["top_right", "bottom_right"]   # round only the far end
 ```
 
-The list is named in the bar's frame too, and applies to every bar as written, whether or not it floats — so the line above rounds a top bar's right-hand end and a side bar's top end. Settings › Appearance › Bar offers both, as **Automatic** and **Chosen**. Either way, the corners where two bars meet in a join stay square — see [Where two bars meet](#where-two-bars-meet).
-
-`panel_square_flush_corners = true` leaves a corner square wherever it lies on a screen edge the bar *touches*, whatever `panel_corners` picks. A bar touches an edge only where no margin separates it from that edge: a top bar flush against the top of the screen squares its two top corners, and one whose right-hand end runs to the screen's side squares both corners at that end. A bar floating clear of every edge rounds every corner it picks.
-
-`panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
-
-The rim is left off every side of the bar that lies **flush against the edge of the screen** — there is nothing beyond it for a line to separate the bar from, so it would only draw the display's own edge a pixel in. A side is flush exactly where its margin is zero: a top bar with `panel_margin = 0` draws only the line along its bottom, facing the desktop; give it `panel_margin = { top = 4 }` and the top line comes back, while its two ends, still at the screen's sides, stay open. A side bar reads its margins in its own frame, as above. An end that stops against another bar, rather than at the screen's edge, keeps its line — or, where the two are joined, leaves the seam to the join.
-
-All of these follow a theme switch live; no restart is needed.
+- `auto` (Settings: **Automatic**) rounds the two corners facing the screen's middle, and a corner on the screen edge only where the bar floats off the display's own corner there. A bar floating on every side rounds all four; a flush one rounds only the inner two.
+- A list (Settings: **Chosen**), `all` or `none` applies to every bar as written. A corner with radius `0` stays square either way.
+- Where two bars join, the inside corner stays square.
 
 ### Sections as islands
 
-`panel_sections = true` breaks the bar into islands: each of its sections — the `left`, `center` and `right` lists of its `[[panels]] layout` — is drawn on a background of its own, drawn tightly round whatever that section holds. Along the bar an island is as long as its modules plus `panel_section_padding` at either end; across it, it takes the bar's whole depth inside the bar's own rim, so every island on a bar is the same height whatever its modules measure. This is what `glassy` and `midnight` do.
+`panel_sections = true` draws each section of a bar — the `left`, `center` and `right` lists of `[panels.<name>.layout]` — on its own island, sized to what it holds. `glassy` and `midnight` do this.
 
 ```toml
 panel_background     = "#00000000"   # the bar itself draws nothing
 panel_gradient       = "none"
-panel_border_width   = 0.0
 panel_radius         = 0.0
 
 panel_sections       = true
 panel_section_background = "#40121722"
-panel_section_gradient = "none"
 panel_section_radius = 12.0
 panel_section_padding = 10.0
 panel_section_border = "#40FFFFFF"
 panel_section_border_width = 1.0
 ```
 
-- **The bar is still drawn beneath the islands.** To show the islands alone, give `panel_background` an alpha of `0` and leave `panel_gradient` at `"none"` — a `"corners"` gradient is drawn at its corner colours' own alphas — as the two shipped themes do. Leave `panel_radius` at `0` too: a rounded bar clips what is inside it, and an invisible one would only trim the islands at its ends.
-- **`panel_section_gradient` is `panel_gradient` for each island**: `"none"` is a flat `panel_section_background`, `"accent"` fades from `accent` across to it at its alpha, and `"corners"` blends the four `panel_gradient_*` colours across each island — so every island is lit from the same corner.
-- **`panel_section_radius` rounds all four corners**, and a radius past half the island's depth is a capsule: on a 32px bar anything from `14` up gives round ends.
-- **`panel_section_border` and `panel_section_border_width`** are the island's rim, and width is the switch, as it is for the bar's. The modules sit inside the rim with a couple of pixels to spare, as they do inside the bar's, so a hovered module's highlight stops short of the line; and they are clipped to the island's rounding.
-- **A section with nothing to show draws no island.** A module with nothing to show on this machine — a battery on a desktop, a tray nothing has registered with — takes no room on the bar, and a section holding only such modules is no island at all rather than an empty capsule. It comes back on its own when one of them has something to show.
-- **The space between the islands is still the bar's.** It is still part of the bar's surface, so it reserves the same space and a right-click there opens the bar's menu, as it does anywhere on the bar that no module is. Use `panel_margin` to lift the islands off the screen edge.
+| Key                          | Type   | Default     | Description |
+| ---------------------------- | ------ | ----------- | ----------- |
+| `panel_sections`             | bool   | `false`     | Draw each section as an island |
+| `panel_section_background`   | colour | `#EE2C2C2C` | Island fill |
+| `panel_section_gradient`     | enum   | `none`      | `none`, `accent` or `corners`, as `panel_gradient` (`corners` uses the `panel_gradient_*` colours) |
+| `panel_section_radius`       | float  | `8.0`       | Corner rounding, 0–64; past half the bar's depth it is a capsule |
+| `panel_section_padding`      | float  | `8.0`       | Space past the first and last module, 0–64 |
+| `panel_section_border`       | colour | `#33F3F4F4` | Island rim colour |
+| `panel_section_border_width` | float  | `0.0`       | Island rim thickness, 0–16; `0` is no rim |
+
+- The bar is still drawn under the islands. To show islands alone, set `panel_background`'s alpha to `0`, `panel_gradient = "none"` and `panel_radius = 0`, as above.
+- A section with nothing to show (say, only a battery module on a desktop) draws no island.
+- The space between islands is still the bar: it reserves space and right-clicking it opens the bar's menu.
 
 ### Where two bars meet
 
-`panel_join_radius` is for a screen with a bar on two adjacent edges — a top or bottom bar and a left or right one. Where the two meet, their inner edges make a sharp right angle at the corner of the space your windows tile into; this fills that angle with a quarter round of the given radius, in the bar's own colour, so the pair reads as one frame around the screen instead of two strips butted together. `dracula` is the one shipped theme that sets it, at `12`.
+With bars on two adjacent edges, `panel_join_radius` fills the inside corner where they meet with a quarter round in the bar's colour, so the pair reads as one frame (`dracula` uses `12`).
 
-- **Only flush bars meet** — unless the theme joins them, see [Joining the bars](#joining-the-bars). Two bars meet in a corner of the screen only when *both* are flush against both of its edges — three of the four `panel_margin` sides, since the two bars read the corner from different keys; anywhere else they float apart and the key is not read there. With a per-side margin, a pair can be joined at one corner and float at its other ends: `panel_margin = { left = 8 }` joins a top bar and a right bar in the top-right corner, with the top bar's left-hand end and the right bar's bottom end floating — see [Floating the bar](#floating-the-bar).
-- **Only one bar per edge.** Two bars stacked on one edge take no part in a join, since which of them is innermost is the compositor's decision and nothing reports it.
-- **The bars square off the corner the fillet turns.** At a joined end, the inner corner `panel_radius` would round is left square, even one picked by `panel_corners`; the bar's other corners round as before.
-- **It is real surface, and it does not take your clicks** — the same arrangement as the foliage below. Every bar's surface grows by the radius while any two bars meet, and that strip is cut out of the surface's input region, so a click on the fillet lands on the window behind it. Windows still tile right up to the bars. Should the shell be unable to set an input region, the surface is not grown and the corner stays square.
-- **The bar that stops at the corner paints it.** The compositor decides which of the two bars runs across the corner (Mir, and so miracle-wm, stretches top and bottom bars across and fits side bars between them; sway goes by the order the bars were made in), and the shell tells which by measuring each bar against the screen. When it cannot tell — say a left and a right bar of equal height under a top bar the compositor shortened at only one end — that corner is left square rather than painted over a bar's buttons.
-- The fillet continues a gradient bar's colour at that end and a rimmed bar's rim round the corner; it does not continue a `panel_texture` or `panel_image`.
-- **A rimmed pair has one outline.** Where two bars meet, the rim between them is left out: the bar that stops at the corner drops the line across its end, and the bar running across it drops its inner line where the other's end lies against it, so the two rims turn the corner as one.
+- Two bars meet only when both are flush in that corner (no margin on the three sides involved), and only when each is the only bar on its edge.
+- The fillet does not take clicks; windows still tile up to the bars. If the shell cannot set an input region, the corner stays square.
+- It continues the bar's gradient and rim, but not `panel_texture` or `panel_image`.
+- Joined bars draw one outline: the rim between them is left out.
 
-#### Joining the bars
-
-`panel_join = true` makes the bars one frame round the screen. Every top or bottom bar meets the side bars at its ends, **whatever the margins say** — the flush rule above no longer applies — and `panel_join_radius`, if set, rounds every one of those inside corners.
+**`panel_join = true`** makes all bars one frame. Every top or bottom bar meets the side bars at its ends whatever the margins, and `panel_join_radius` rounds every inside corner.
 
 ```toml
 panel_join   = true
 panel_margin = { bottom = 10 }   # the frame stands 10px off the bottom of the screen
 ```
 
-- **The margins are the screen's.** Under `panel_join` each side of `panel_margin` is how far the frame stands off that screen edge, and it moves only the bar on that edge: `bottom = 10` lifts the bottom bar, and a side bar's bottom end comes up with it rather than taking a margin of its own; `left = 10` floats the left bar and the top and bottom bars' left-hand ends together, so the corner stays closed. A bar's end that meets nothing keeps the margin of its side.
-- **The top and bottom bars run across the corners**, and the side bars stop against them — Mir's own placement, and the shell makes the top and bottom bars before the side ones so that sway, which places bars in the order they were made, agrees. Keep joined bars on one `layer`: sway places a higher layer's bars first.
-- **One radius for each corner of the frame.** `panel_radius` and `panel_corners` name the screen's corners too: `top_left` is the screen's top-left wherever a bar holds it. The bar running across a corner rounds the frame's corner there; the side bar's end and the inside corner stay square.
-- **No rim between them**, as above.
-- Two bars on one edge still never join.
+- Under `panel_join`, `panel_margin`, `panel_radius` and `panel_corners` name the **screen's** sides and corners. `bottom = 10` lifts the bottom bar, and the side bars' bottom ends follow it.
+- Top and bottom bars run across the corners; side bars stop against them. Keep joined bars on the same `layer`.
 
 ### Popups
 
-`popup_radius`, `popup_border` and `popup_border_width` are the bar's three shape keys again, for everything that floats *over* it: popups, context menus, category flyouts, the tray menus, the app chooser, the confirmation dialogs and the on-screen indicator. They read exactly like their `panel_` counterparts — **width is the switch** for the rim, and a translucent card wants one for the same reason a translucent bar does.
+These keys style everything that floats over the bar: popups, menus, flyouts, tray menus, dialogs and the OSD.
 
-The one difference is corners, and it is the same rule the bar has for the same reason. A popup that **floats** rounds all four: nothing sits behind it to cut a wedge out of. A popup **attached to the bar** — see below — squares off the two corners on the join, because the bar *does* sit behind those, and flares them outward into it when `popup_attach_radius` is above zero.
+| Key                     | Type   | Default     | Description |
+| ----------------------- | ------ | ----------- | ----------- |
+| `popup_radius`          | float  | `8.0`       | Corner rounding, 0–64 |
+| `popup_gap`             | float  | `0.0`       | Distance from the bar, 0–64; `0` attaches the popup to the bar |
+| `popup_attach_radius`   | float  | `0.0`       | Outward flare where an attached popup meets the bar, 0–64; gap `0` only |
+| `popup_border`          | colour | `#33F3F4F4` | Rim colour |
+| `popup_border_width`    | float  | `1.0`       | Rim thickness, 0–16; `0` is no rim |
+| `popup_shadow_color`    | colour | `#66000000` | Shadow colour; alpha `0` turns the shadow off |
+| `popup_shadow_blur`     | float  | `16.0`      | Blur radius, 0–64 |
+| `popup_shadow_spread`   | float  | `0.0`       | Grow (or, negative, shrink) before blurring, −32–32 |
+| `popup_shadow_offset_x` | float  | `0.0`       | Horizontal offset, −64–64; positive is right |
+| `popup_shadow_offset_y` | float  | `6.0`       | Vertical offset, −64–64; positive is down |
+| `popup_animation`       | enum   | `slide`     | Entrance effect, played in reverse to close |
+| `popup_animation_duration` | int | `120`       | Entrance length in ms, 0–2000; the exit takes 3/4 of it |
 
-**A popup opened from the bar is anchored to the bar's inner edge, centred on the button that opened it.** Not to the button itself: modules carry different amounts of padding, so anchoring to the button put each module's popup at a slightly different height and left all of them overlapping the bar by a pixel or two.
+- A bar popup opens at the bar's inner edge, centred on its button.
+- **`popup_gap = 0` is attached mode:** the card sits flush, squares its corners on the bar side and drops its rim and shadow there. `carbon` pairs it with `popup_attach_radius = 12`. Keep a gap with a translucent `popup_background` (as `glassy` does with `8`): attached, the two translucent fills show a step in tone.
+- A rimmed bar leaves its rim out where an attached menu is open, so the outline runs round the card.
+- The shadow enlarges the popup's window, and clicks in that margin hit the popup. On the bar side it never reaches past the gap.
+- An off-palette shadow colour with zero offsets and some spread is a glow (`midnight`).
+- The [notification panel](#notifications) and the clipboard history cast the same shadow on their inner edge, using only colour, blur and spread.
+- Tooltips never attach. Menus opened at the pointer (desktop menu, category flyouts) ignore the gap. Popup sizes are not themable.
 
-`popup_gap` is how far off that edge the card sits, and it is the popup analogue of `panel_margin` one layer up — that floats the bar off the screen, this floats a popup off the bar.
+**`popup_animation`** values:
 
-**A gap of `0` is the attached mode**, not merely a small gap. The card goes flush against the bar, the two corners touching it are squared off, and the rim and the shadow on that edge are dropped, so the popup reads as growing out of the bar rather than floating over it. There is no separate switch; this key is it.
+| Value    | Effect |
+| -------- | ------ |
+| `none`   | No animation |
+| `fade`   | Opacity only |
+| `slide`  | A short slide out of the bar, with a fade (default) |
+| `scale`  | Grows from its centre, with a fade |
+| `grow`   | Unrolls from the bar edge |
+| `flip`   | Swings open, hinged on the bar edge |
+| `spin`   | Turns slightly as it scales in, with a fade |
+| `sprout` | Grows out of the bar like a trunk, then sways |
 
-`popup_attach_radius` then shapes that join, and it is the **inverse** of the corner radius its name suggests. A rounded corner curves *away* from the surface behind it, which leaves a transparent wedge on either side of the join and makes the card read as resting against the bar. This sweeps each side *outward* instead as it reaches the panel, so the card is at its widest exactly where the two meet — the way a branch runs into a trunk. At its default of `0` there is no flare at all and the join is a square butt joint, the card's sides continuing the bar's. It is unread at any other gap, because with a gap there is no join to shape.
-
-The flare is drawn *outside* the card's own box, so the shell grows the popup's window to make room for it exactly as it does for the shadow, and takes the larger of the two rather than the sum.
-
-`carbon` is the shipped example of the pair: `popup_gap = 0` with `popup_attach_radius = 12`, on an opaque bar with no shadow anywhere in the theme, so the flared join is the only shaping in the picture and every menu reads as an extension of the panel rather than a card in front of it.
-
-Two things to know before attaching a theme. A theme with a **translucent `popup_background`** should keep a gap: at zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching. And a bar with `panel_border_width` above zero draws its rim on the inner edge too — the edge the menus come out of. The compositor places a popup *below* the bar rather than over it, so the card cannot paint that hairline out; the **bar** leaves it out instead, across exactly the stretch the open menu covers. `carbon` is the shipped example: a 1px rim in the same colour and width as its popups', so the outline runs along the bar, breaks off where a menu is open, goes round the card and comes back.
-
-Hover tooltips take the edge anchor but never attach: a label that comes and goes with the pointer reads as a floating card, not as part of the furniture. Menus anchored to the *pointer* — the desktop's context menu, the app-directory's category flyouts — have no panel edge to sit off and are unaffected by either key.
-
-Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — because that is the shape the shell's menus have always drawn. A theme that says nothing about popups gets that, including a theme file written before these keys existed.
-
-The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blur radius, a spread, and an offset on each axis. There is one shadow per theme rather than the stack CSS allows.
-
-**A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all — which is what `carbon` does.
-
-The [notification panel](#notifications) and the [clipboard history](#clipboard) cast the same shadow across their inner edge, since both float over your windows. Only the color, blur and spread apply there — a full-height column has no bottom for an offset to show under — and the strip the shadow falls in does *not* take your clicks: it is cut out of the panel's input region, and should the shell be unable to do that, the panel opens with no shadow rather than with a strip that swallows clicks.
-
-Nothing says the shadow has to read as one. Give it a colour off the palette rather than a black, leave both offsets at `0` so it is not displaced from the card, and take `popup_shadow_spread` above zero so the falloff starts outside the card's edge, and the same key paints a symmetrical bloom around the card instead of weight beneath it. That is `midnight`, and the geometry follows it: with no displacement the window grows by `blur + spread` on all four sides equally, and on a bar popup the joined side is still clamped to `popup_gap`, so the glow fills the gap between card and bar and stops at the panel.
-
-A bar popup never paints its shadow over the bar: on the joined edge the margin is clamped to `popup_gap`, so at a small gap the shadow fills it and stops, and at `0` the surface is flush and the shadow is cut exactly at the join. A gap of `popup_shadow_blur + popup_shadow_spread` or more leaves the shadow untouched.
-
-Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
+`slide`, `grow` and `flip` move away from the bar the popup came from; pointer menus act as if hanging below their anchor. `none` is the real off switch (a duration of `0` still runs the effect, instantly). The dock's labels and menu, and the scratchpad tooltip, never animate.
 
 ### Materials, pictures and foliage
 
-Everything above is colour and shape. These keys say what a surface is *made of*, and what grows on it. Every one of them is off at its default, and off means absent — a theme that spells none of them is painted exactly as it was before they existed, with not one extra layer.
+These keys say what a surface is made of and what grows on it. All are off by default, and off costs nothing. `forest` uses all of them; `autumn` is a variation.
 
-**Materials.** `panel_texture`, `panel_end_texture`, `popup_texture` and `popup_border_texture` each name one of five materials:
+| Key                   | Type   | Default     | Description |
+| --------------------- | ------ | ----------- | ----------- |
+| `panel_texture`       | enum   | `none`      | The bar's material |
+| `panel_texture_color` | colour | `#6B4A2E`   | Its tint; alpha is the material's strength |
+| `panel_end_texture`   | enum   | `none`      | A second material capping each end of the bar |
+| `panel_end_color`     | colour | `#6E726B`   | The caps' tint; alpha is strength |
+| `panel_end_length`    | float  | `0.0`       | How far each cap reaches along the bar, 0–256; `0` is none |
+| `panel_bevel`         | float  | `0.0`       | Carved depth of the bar's long edges, 0 (flat) – 1 |
+| `panel_image`         | string | `""`        | A picture tiled over the bar instead of `panel_texture` |
+| `panel_foliage`       | enum   | `none`      | What grows off the bar's inner edge |
+| `foliage_color`       | colour | `#3E7A3A`   | Leaf colour (in `harvest`, the still-green leaves) |
+| `foliage_bloom`       | colour | `#E0A13A`   | Berries and flowers (in `harvest`, turned leaves and pumpkins) |
+| `foliage_density`     | float  | `1.0`       | Amount, as a multiple of the style's own, 0–3 |
+| `panel_overhang`      | int    | `0`         | How far foliage may hang past the bar, 0–160 px |
+| `popup_texture`       | enum   | `none`      | A popup card's material, under its content |
+| `popup_texture_color` | colour | `#206B4A2E` | Its tint; keep the alpha low so text stays readable |
+| `popup_border_texture` | enum  | `none`      | Material for the popup rim instead of `popup_border` |
+| `popup_border_texture_color` | colour | `#5A4030` | The rim material's tint |
+| `popup_image`         | string | `""`        | A picture tiled over popup cards instead of `popup_texture` |
+| `popup_roots`         | float  | `0.0`       | How far roots spread along the bar from an attached popup, 0–96; gap `0` only |
 
-| Value   | What it looks like                                                                 |
-| ------- | ---------------------------------------------------------------------------------- |
-| `none`  | No texture; the surface is its colour alone                                         |
-| `wood`  | Timber planks: grain running the length of the surface, knots the grain bends round, butt joints and nails |
-| `stone` | Coursed stone: rounded, uneven blocks in a dark mortar bed, with moss in the joints |
-| `bark`  | Ridged bark plates with deep fissures running along the trunk, and the odd patch of lichen |
-| `moss`  | A soft bed of fine moss                                                             |
+**Materials** (`*_texture`): `none`, `wood` (planks with grain and knots), `stone` (coursed blocks with mossy joints), `bark` (ridged plates), `moss` (a soft bed). They are generated, not image files, and drawn in the tint you give.
 
-None of them is an image file. Each is drawn once, from seeded arithmetic, as a seamless tile in the tint you give it (`*_color`), cached, and repeated across the surface — the same tile for every bar on every monitor, so a material costs nothing per frame. The tint's **alpha is the material's strength**: opaque paints over the surface's own fill, and `#20…` is a grain glimpsed through it. Grain runs along the bar, and on a popup's rim it runs *away* from the bar, the way bark runs up a trunk.
+**Foliage** (`panel_foliage`): `none`, `ivy` (trailing vines), `moss` (fine hanging strands, the quietest), `wildwood` (vines, moss, ferns, leaves, and berries/flowers in `foliage_bloom`), `harvest` (autumn leaves heaped in the corners under a top or side bar; pumpkin patches along a bottom bar).
 
-`panel_end_texture` caps each end of the bar in a second material for `panel_end_length` pixels — capstones on a beam — with an uneven seam and a shadow where it sits on the bar. `panel_bevel` carves the bar's two long edges, a lit lip on the edge facing the top of the screen and a shadow on the other, which is what turns a textured strip into a beam with a thickness.
-
-`popup_border_texture` paints a popup's rim (`popup_border_width` thick) in a material instead of `popup_border`'s flat colour, shaded as the outside of a cylinder — bark around a dark card is a trunk. The kill confirmation's accent rim is never dressed up: it carries meaning.
-
-**Pictures.** `panel_image` and `popup_image` tile a picture of your own over the bar or a card instead of the material, at one picture pixel to one logical pixel. A path is absolute, starts with `~/`, or is relative to the themes directory — so a theme and its pictures can travel as one folder. The material is painted until the picture loads, and for good if it will not; the Appearance page says why under the field and offers a retry.
-
-**Foliage.** `panel_foliage` grows plants off the bar's inner edge, into `panel_overhang` pixels past it:
-
-| Value      | What grows                                                                     |
-| ---------- | ------------------------------------------------------------------------------ |
-| `none`     | Nothing                                                                         |
-| `ivy`      | Long trailing vines of ivy, dense where they leave the bar                      |
-| `moss`     | Fine strands of hanging moss and the odd small leaf — the quietest              |
-| `wildwood` | Vines, moss, ferns springing from the bar's ends, clumps of leaves along its edge, and berries and flowers in `foliage_bloom` |
-| `harvest`  | Autumn. Off a top or side bar, the screen's two corners framed in turning maple and oak — a heap tucked under the bar's two ends against the screen's edge and spilling down its side as far as `panel_overhang` reaches, thickest in the corner, with the odd leaf on its way down; along a bottom bar, pumpkin patches — one in each corner and a few between — with their vines, leaves and fallen leaves. The leaves turn from `foliage_color`'s green to `foliage_bloom` and past it, through reds, golds and browns; the pumpkins are mostly `foliage_bloom` |
-
-**Gravity is the bar's edge.** A top bar's vines hang; above a bottom bar the same plants stand up and arc over at the tip; off a side bar they leave sideways and droop. What grows is seeded by the bar's length, so every bar of the same size grows the same plants on every start. The leaves rustle when the pointer arrives on the bar and when a popup opens out of it, and are perfectly still — no animation running at all — the rest of the time.
-
-**The overhang is real surface, and it does not take your clicks.** The bar's surface is grown by `panel_overhang` to hold the leaves, and that strip is cut out of the surface's *input region*: a click on a hanging leaf lands on the window behind it. The exclusive zone does not grow, so windows still tile right up to the bar and the leaves hang over them. Should the shell be unable to set an input region, it does not grow the surface at all and nothing hangs — a strip of leaves that swallowed every click beneath it would be a broken bar, not a decorated one. Leaves reach onto the bar itself only as a fringe on its inner edge, so a module is overhung, never hidden
-
-**Roots.** At `popup_gap = 0`, `popup_roots` spreads roots along the bar from either side of an open popup, in `popup_border_texture`, with a foot where the card leaves the bar — so a menu reads as a trunk growing out of the bar rather than a card pressed against it. The bar's rim breaks to let them through. They grow in as the popup opens and draw back as it closes.
-
-**`sprout`** is the `popup_animation` that goes with all of this: the card pushes out of the bar narrow and crowned, thickens to its full width as it lengthens — wearing its bark rim the whole way — and settles with a small sway.
-
-`forest` uses every one of these keys; it is the place to start reading a theme that does. `autumn` is the same theme grown differently.
+- Plants grow away from the bar: they hang from a top bar, stand up from a bottom one. They rustle when the pointer reaches the bar or a popup opens, and are still otherwise.
+- The overhang does not take clicks and windows still tile up to the bar. If the shell cannot set an input region, nothing hangs.
+- **Pictures:** a path is absolute, starts with `~/`, or is relative to the themes directory. Until it loads (or if it fails) the material is drawn; Settings › Shell › Theme shows why and offers **Retry**.
+- **Roots** (`popup_roots`) are drawn in `popup_border_texture` and grow as the popup opens. Pair them with `popup_animation = "sprout"`.
 
 ### Overlays
 
-`overlay_radius` is `popup_radius` for the cards the full-screen overlays centre on the dimmed screen: the overview (the calendar, settings and todo board), the launcher, the emoji picker and the screen-share picker. It is a key of its own because the two are different sizes of thing — a radius that suits a three-row menu looks like a pill on a card half the size of the screen, and one that suits the settings panel turns a tooltip into a circle. `0` squares the cards off. Whatever is inside a card is clipped to the curve, so a large radius cuts into the content's corners rather than letting it spill past them.
+The full-screen overlays are the overview (calendar, settings, board and the other tabs), the launcher, the emoji picker, the power menu, the window switcher, the authentication and input-capture prompts and the screen-share picker.
 
-The power menu, the window switcher and the two consent prompts are drawn as popups that happen to be centred, and follow `popup_radius` along with the rest of the popup keys.
+| Key                    | Type  | Default    | Description |
+| ---------------------- | ----- | ---------- | ----------- |
+| `overlay_radius`       | float | `12.0`     | Corner rounding of the overview, launcher, emoji picker and screen-share picker cards, 0–64 |
+| `overlay_aspect`       | float | `1.5`      | The overview's width over its height, 0.5–2 |
+| `overlay_animation`    | enum  | `scale`    | Entrance effect, played in reverse to close |
+| `overlay_animation_duration` | int | `130` | Entrance length in ms, 0–4000 |
+| `overlay_animation_exit_ratio` | float | `0.8` | Exit length as a fraction of the entrance, 0–2 |
+| `overlay_animation_curve` | enum | `ease_out` | Easing |
 
-Themes written before this key existed get `12.0`, which is the radius every one of those overlays drew before it could be changed.
+- The power menu, the window switcher and the prompts use `popup_radius` for their cards.
+- The overview stays within 88% of the screen's height and 90% of its width, 720–1400 px wide; on a small screen it fits first and keeps its shape second.
+- The settings panel opens 1.5× slower than the other overlays, scaled from your duration.
+- `none` is the real off switch. The scrim only fades.
+- The notification panel and clipboard history have their own animation keys and ignore these.
 
-`overlay_aspect` is the overview's shape — the panel holding the calendar, settings, the board and the other tabs — as its width over its height, from `0.5` (twice as tall as wide) to `2.0` (twice as wide as tall). The default, `1.5`, is a landscape card half again as wide as it is tall; `1` is square. The launcher, the emoji picker and the prompts are sized by what is in them and ignore it. The panel is still a share of the screen — at most 88% of its height and 90% of its width, and between 720 and 1400 pixels wide — so on a display too short or too narrow for the ratio the panel fits the screen first and keeps its shape second. A theme switch lands the new shape at once rather than blending to it.
+**`overlay_animation`**: `none`, `fade`, `scale` (grows slightly from centre; default), `zoom` (settles back from slightly larger), `rise` (from below), `drop` (from above), `unfold` (vertically from its middle), `flip` (hinged on its horizontal middle), `swing` (hinged on its vertical middle, like a door), `spin` (turns slightly as it scales). Every effect but `none` also fades.
 
-### About `popup_animation`
-
-`popup_animation` is how a popup arrives. Whichever effect you pick is also how it leaves, played backwards — there is no second key for the exit, and there cannot be one: the way out is the way in reversed, always, which is what makes a card that unrolled out of the bar roll back into it rather than blinking away.
-
-| Value    | What it does                                                              |
-| -------- | ------------------------------------------------------------------------- |
-| `none`   | No animation. The card is simply there, and simply gone                    |
-| `fade`   | Opacity alone                                                             |
-| `slide`  | A short travel out of the bar the popup belongs to, under a fade — the default |
-| `scale`  | Grows into place from the card's own centre, under a fade                  |
-| `grow`   | Unrolls out of the bar, growing from the edge the two share                |
-| `flip`   | Swings open about that same edge, as though hinged there                   |
-| `spin`   | Turns a few degrees as it scales into place, under a fade                  |
-| `sprout` | Grows out of the bar like a trunk: narrow and crowned first, thickening as it lengthens, settling with a sway |
-
-`slide`, `grow` and `flip` take their direction from the bar the popup was opened from, so a bottom bar's menus rise and a top bar's drop. A menu anchored to the *pointer* — the desktop's context menu, an app-directory category flyout — has no bar to travel out of and is treated as hanging below its anchor, which is where the compositor puts it.
-
-`popup_animation_duration` is how long the entrance runs, in milliseconds, and it defaults to 120. The exit is three quarters of whatever you set: an entrance is paced to be followed, while a dismissal is you saying you are done with the card, and a fraction rather than a second key is what stops the two drifting into an exit longer than the entrance it reverses. It is clamped to 0–2000, and `none` is the off switch rather than a duration of `0` — at `none` nothing is wrapped and no animation controller is created at all, where `0` is the effect played instantly.
-
-**The dock ignores this key.** Its hover labels and its unpin menu always open with `none`, whatever the theme says: the dock is a strip the pointer sweeps along, opening and abandoning a surface at every button on the way past, and a card that animated at each of them reads as the shell twitching rather than answering.
-
-Themes written before this key existed get `slide`.
-
-### About the overlay animation
-
-The four `overlay_animation*` keys are `popup_animation`'s counterpart one layer up: how the **full-screen overlays** arrive. That is the overview, the launcher, the emoji picker, the power menu, the authentication prompt and the screen-share picker — everything that dims the screen and puts a card in the middle of it. Until these keys existed they all did exactly one thing, at exactly one pace.
-
-They are separate from the popup keys on purpose. A menu is furniture you are already reaching past, and an overlay is a surface you asked for; a theme that wants a snappy bar and a stately settings panel has to be able to say both.
-
-**`overlay_animation`** is the shape:
-
-| Value    | What it does                                                                 |
-| -------- | ---------------------------------------------------------------------------- |
-| `none`   | No animation. The overlay is simply there, and simply gone                    |
-| `fade`   | Opacity alone — the scrim washes in and the card fades up in place            |
-| `scale`  | The card grows a little into place from its own centre, under a fade — the default |
-| `zoom`   | The card settles back to size from slightly larger, as though coming towards you |
-| `rise`   | The card lifts into place from below, under a fade                           |
-| `drop`   | The card comes down into place from above, under a fade                       |
-| `unfold` | The card unfolds vertically from its own middle, keeping its width            |
-| `flip`   | The card tilts open about its horizontal middle, as though hinged there       |
-| `swing`  | The card swings open about its vertical middle, like a door                   |
-| `spin`   | The card turns a few degrees as it scales into place, under a fade            |
-
-Every value but `none` fades as well as moves, and that is not decoration: an overlay is a card centred on a scrim that covers the whole screen, so an effect that only moved would slide a solid card in over a wash that was already there.
-
-**`overlay_animation_curve`** is the pacing, and the two multiply out — a `rise` on an `elastic` and a `flip` on a `linear` are both sentences these keys can say:
-
-| Value         | What it does                                                          |
-| ------------- | --------------------------------------------------------------------- |
-| `linear`      | A constant rate, with no acceleration                                 |
-| `ease_in`     | Starts slowly and accelerates into place                              |
-| `ease_out`    | Starts quickly and settles — the shell's standard entrance, and the default |
-| `ease_in_out` | Eased at both ends                                                    |
-| `emphasized`  | A sharp departure and a soft landing, weighted towards the end        |
-| `overshoot`   | Goes a little past where it is heading, then settles back             |
-| `bounce`      | Lands, bounces, and lands again                                       |
-| `elastic`     | Springs past and oscillates before settling                           |
-
-The last three deliberately travel past the resting state and come back, which is the whole point of having them; the card's *opacity* is held inside its normal range while they do, so an overshoot is a movement rather than a flicker. `elastic` in particular wants a longer duration than the default — at the default 130 ms a spring reads as a stutter.
-
-**`overlay_animation_duration`** is how long the entrance runs, in milliseconds, clamped to 0–4000. A wider ceiling than a popup's, for the same reason these are separate keys at all. `0` is the animation played instantly; `overlay_animation = "none"` is the off switch, and it is a real one — no animation controller is built, nothing is layered over the card, and the window is destroyed on the frame it is dismissed.
-
-**`overlay_animation_exit_ratio`** is how the exit relates to the entrance, and it is the second timing knob rather than a second duration. The way out is always the way in reversed — the same shape, so a card that swung open swings shut — and this says only how long it takes: `0.75` leaves in three quarters of the time it arrived in, `0.8` (the default) in four fifths, `1.0` takes exactly as long, and the ceiling of `2.0` is there because an overlay that dissolves more slowly than it appeared is a legitimate choice. Because it is a ratio, lengthening the entrance lengthens the exit with it; the two cannot drift apart. Read backwards, an `overshoot` entrance becomes an anticipation dip on the way out, which is the pair those curves are drawn to make.
-
-Two notes on what is *not* animated. The **scrim never moves** — it is the size of your display, so anything transforming or layering it would cost a full-screen composite every frame, and it arrives by its own alpha instead. And the **settings panel arrives a half again more slowly** than the other overlays, as it always has, because it is a workspace rather than a card you are chasing: that is a proportion of whatever you set here, not a duration of its own, so it still moves when you move `overlay_animation_duration`.
-
-The **docked panels — the notification panel and the clipboard history — keep their own entrance**, and these keys do not reach them. Each is a full-height surface butted against the screen edge rather than a card in the middle of one, so it slides out of that edge and back into it; a centre-pivoted scale there opens a transparent strip along the screen edge that reads as the panel having come loose.
-
-Themes written before these keys existed get `scale` at 130 ms on `ease_out`, leaving in four fifths of that — the shape every overlay played before there was a choice, at the shell's current pace.
-
-### About `font_size`
-
-`font_size` is the size of the shell's *body* text — the tier most of the shell is set in — and every other size follows it. A caption stays a caption and a heading stays a heading: the whole scale is multiplied through by `font_size / 13`, so `font_size = 16` makes everything about a quarter larger and `font_size = 10` makes everything smaller, in the panels and in every popup, menu, overlay and desktop widget they open. `13.0` is the shipped value, so a theme file that does not spell the key renders exactly as it always did; `midnight` is the one shipped theme that moves it, at `14.0`.
-
-Two things it deliberately does not change. **Panel thickness** is `[panels.<name>] height` in `config.toml`, not a theme key — a bar left at its default height crops a much larger font, and the fix is to raise `height` alongside. **Icons** keep the size they are drawn at: a tray icon or a weather glyph is a picture, not type, and their sizes are `[modules.*]` options where they are configurable at all.
-
-Sizes are in logical pixels and clamped to 6–32. The settings editor's **Font size** field is the same key, live: the shell re-lays itself as you type, with no restart.
-
-### About `icon_pack`
-
-Every interface icon in the shell — the bar's buttons, the menus, the settings sidebar, the overview's tabs, the desktop's context menu — is drawn from one icon font, and `icon_pack` picks which:
-
-| Value               | Pack                      | Look                                                                    |
-| ------------------- | ------------------------- | ----------------------------------------------------------------------- |
-| `font_awesome`      | Font Awesome Free         | Solid, heavy glyphs. The default, and every other pack's fallback        |
-| `material_rounded`  | Material Symbols Rounded  | Google's symbols with rounded corners and ends                           |
-| `material_outlined` | Material Symbols Outlined | Google's symbols, outlined, with crisp corners                           |
-| `material_sharp`    | Material Symbols Sharp    | Google's symbols with square corners and ends                            |
-| `lucide`            | Lucide                    | Thin, even strokes and no filled forms                                   |
-| `remix`             | Remix Icon                | Neutral line icons, filled where a state wants to read as on             |
-
-Where Font Awesome tells two states apart by fill alone — a filled folder, a solid record dot — Material Symbols turns its fill axis up and Remix uses its fill style; Lucide has no filled forms, so those keep their outline and are told apart by shape. A pack that has no drawing for an icon borrows Font Awesome's: Material Symbols and Lucide have no brand logos, so GitHub, Linux and Google Drive stay Font Awesome's under both, and Material Symbols has no pull-request glyph. The account marks in **Settings › Accounts** are the brands' own drawings under every pack, as their colours are.
-
-The other packs are drawn a little larger than the size each surface asks for, because their glyphs sit inside a margin on a 24-unit grid where Font Awesome's fill the box — so an icon reads at the same size under every pack, and no bar or row changes height when you switch. Application, tray and file icons come from your desktop icon theme and the weather pictures are Meteocons; neither changes with this key. `font_awesome` is the shipped value, and a theme file that does not spell the key draws exactly what the shell drew before it existed.
-
-### About `blur`
-
-`blur` softens what sits behind the settings and launcher panels — that is, the `scrim` — and nothing else. It cannot frost the desktop: a shell surface is transparent and the compositor owns everything under it, and Mir exposes no blur protocol for a client to ask for one. A theme that wants to look like glass does it with alpha, as `glassy` does. Set `blur = 0` to skip the filter entirely.
-
-### Migrating from an inline `[theme]` table
-
-Older versions kept the palette in a `[theme]` table inside `config.toml`. That table is now ignored — `theme` is a name, not a table. To keep a palette you had customized, copy the contents of your old `[theme]` table into `~/.config/moonswing/themes/mine.toml` (dropping the `[theme]` header line), delete the table from `config.toml`, and set `theme = "mine"`. An un-migrated `[theme]` table is harmless: it costs you the theme, not the rest of your config.
+**`overlay_animation_curve`**: `linear`, `ease_in`, `ease_out` (default), `ease_in_out`, `emphasized` (sharp start, soft landing), `overshoot` (past the target and back), `bounce`, `elastic` (springs and settles; give it a longer duration than 130 ms).
 
 ## Background
 
-The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It rotates through a list of images on a timer, with an animated transition between them — a crossfade by default, or one of the effects under [Wallpaper transitions](#wallpaper-transitions), or a different one each time.
-
-If this section is absent, no background window is created.
+`[background]` is the desktop wallpaper: a list of images shown in order, changing every `interval_minutes` with an animated [transition](#wallpaper-transitions). Edit it under **Settings → Shell → Wallpaper**.
 
 ```toml
 [background]
 fit = "fill"
-
 interval_minutes = 5
 transition = "random"
 transition_duration = 1500
 
 [[background.entries]]
-path = "/home/user/wallpapers/day.jpg"
+theme = true            # the active theme's wallpaper
 shown = true
 
 [[background.entries]]
@@ -1863,97 +1323,68 @@ path = "/home/user/wallpapers/dusk.jpg"
 shown = true
 ```
 
-### Background Settings
+| Key                   | Type   | Default  | Description                                              |
+| --------------------- | ------ | -------- | -------------------------------------------------------- |
+| `fit`                 | string | `"fill"` | `"fill"` (cover, cropping), `"contain"` (letterbox) or `"natural"` (no scaling) |
+| `interval_minutes`    | int    | `5`      | Minutes between wallpapers (minimum 1)                   |
+| `transition`          | string | `"fade"` | How one wallpaper replaces the next — see below          |
+| `transition_duration` | int    | `1500`   | Length of the transition in ms, 0–10000; `0` is a cut    |
 
-| Key                | Type   | Default  | Description                                            |
-| ------------------ | ------ | -------- | ------------------------------------------------------ |
-| `fit`              | string | `"fill"` | How the image is sized within the screen                |
-| `interval_minutes` | number | `5`      | Minutes between wallpapers when more than one is shown |
-| `transition`       | string | `"fade"` | How one wallpaper gives way to the next — see [Wallpaper transitions](#wallpaper-transitions) |
-| `transition_duration` | number | `1500` | How long that change takes, in milliseconds, clamped to 0–10000. `0` is an instant cut |
+Each `[[background.entries]]` table is one wallpaper:
 
-**`fit` values:**
+| Key     | Type    | Default | Description                                         |
+| ------- | ------- | ------- | --------------------------------------------------- |
+| `path`  | string  |         | Absolute path to an image                           |
+| `theme` | boolean | `false` | Use the active theme's wallpaper instead of `path`  |
+| `shown` | boolean | `true`  | Whether it is in the rotation                       |
 
-| Value       | Description                                            |
-| ----------- | ------------------------------------------------------ |
-| `"fill"`    | Scale to fill the screen, cropping if needed (cover)   |
-| `"contain"` | Scale to fit within the screen, letterboxing if needed |
-| `"natural"` | Display at original resolution, no scaling             |
-
-### Background Entries
-
-Each `[[background.entries]]` block names one wallpaper.
-
-| Key     | Type    | Default | Description                                            |
-| ------- | ------- | ------- | ------------------------------------------------------ |
-| `path`  | string  |         | Absolute path to an image file                          |
-| `theme` | boolean | `false` | Instead of a `path`: the active theme's own wallpaper — see below |
-| `shown` | boolean | `true`  | Whether this wallpaper is in the rotation               |
-
-Wallpapers are shown in the order they appear, advancing every `interval_minutes`; with one shown entry there is no rotation at all. List order is the presentation order and is never sorted.
+- Entries rotate in file order. With one shown entry there is no rotation.
+- Images only: JPEG, PNG, WebP, GIF, BMP. The settings page drops entries whose file is missing or not one of these.
+- The wallpaper surface is created at start-up if `[background]` has entries or the [desktop grid](#desktop-icons) is on. Changing that needs a restart; everything else applies live.
 
 ### The theme's wallpaper
 
-An entry with `theme = true` in place of a `path` is not a file but *whichever wallpaper the active theme comes with* — the theme file's `wallpaper` key. It is looked up each time it is painted, never written down as a path, so with it shown, switching theme switches the wallpaper: from the moon under `glassy` to a mountain stream under `forest`, with the usual transition, and nothing in `config.toml` changes. A theme with no `wallpaper` adds nothing to the rotation while it is active. The default `config.toml` shows exactly this entry:
+An entry with `theme = true` shows whatever wallpaper the active theme names (its `wallpaper` key), looked up when drawn. Switching theme then switches the wallpaper, and `config.toml` does not change. A theme with no wallpaper adds nothing to the rotation. The default config contains exactly this entry.
 
-```toml
-[[background.entries]]
-theme = true
-shown = true
-```
+In Settings it is the **Theme default** tile, always first. It cannot be removed; deselecting it returns it to Available.
 
-In Settings → Shell → Background it is the **Theme default** tile, always the first one offered: a preview of the current theme's wallpaper (an empty square when the theme has none). Selecting it puts it at the front of the rotation; like an installed wallpaper it cannot be removed, and deselecting it just returns it to Available. It mixes freely with wallpapers of your own — they rotate together in the order shown.
-
-A theme's `wallpaper` is resolved the way its pictures are: an absolute path, a path under `~/`, or a name beside the theme file — so a theme and its wallpaper can travel as one folder. A bare name found in none of those is one the shell installs itself: the shipped themes name `wallpaper.jpg`, `wallpaper-forest.jpg`, `wallpaper-autumn.jpg`, `wallpaper-dracula.jpg`, `wallpaper-midnight.jpg`, `wallpaper-carbon.jpg` and `wallpaper-classic95.jpg`, which `make install` puts in `$PREFIX/share/moonswing` and the snap ships. To give your own theme a wallpaper, set it in the theme file or on the Theme page's **Theme wallpaper** row.
+A theme's `wallpaper` is an absolute path, a `~/` path, or a name beside the theme file. A bare name not found there is looked up among the shell's installed wallpapers (`$PREFIX/share/moonswing` after `make install`, or the snap). The shipped themes use `wallpaper.jpg`, `wallpaper-forest.jpg`, `wallpaper-autumn.jpg`, `wallpaper-dracula.jpg`, `wallpaper-midnight.jpg`, `wallpaper-carbon.jpg` and `wallpaper-classic95.jpg`. Set your own theme's wallpaper in the theme file or with the **Theme wallpaper** row on the Theme page.
 
 ### Installed wallpapers
 
-Settings > Shell > Background also lists every wallpaper the distribution installed — Ubuntu's `/usr/share/backgrounds`, Fedora's per-release sets, the KDE packages under `/usr/share/wallpapers`, and the same two directory names under any other `$XDG_DATA_DIRS` entry (plus Debian's `desktop-base` theme and `/usr/share/pixmaps/backgrounds`). Nothing has to be configured for them to appear, and picking one adds the ordinary `[[background.entries]]` block above.
-
-These are discovered on every visit rather than written to `config.toml`, which is what makes them permanent: they carry no remove button in the settings UI, and deselecting one simply returns it to the Available list. Removal is offered for wallpapers you added yourself. A KDE wallpaper package is listed once, at its largest resolution, rather than once per resolution it ships.
-
-Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode. Entries whose path is missing, or is not one of those formats, are pruned by the settings UI.
+The Wallpaper page also lists the wallpapers your distribution installed: `backgrounds/` and `wallpapers/` under each `$XDG_DATA_DIRS` entry (Ubuntu, Fedora, KDE and others), plus `/usr/share/desktop-base` and `/usr/share/pixmaps/backgrounds`. A KDE package appears once, at its largest size. Picking one adds an ordinary entry. These tiles cannot be removed, only deselected; removal is for wallpapers you added.
 
 ### Wallpaper transitions
 
-Every change of wallpaper — the rotation advancing, a theme switch with the Theme default shown, an edit to what is shown — plays `transition`, over `transition_duration` milliseconds:
+`transition` plays on every wallpaper change: the rotation advancing, a theme switch with the theme's wallpaper shown, or an edit to what is shown.
 
-| Value            | What the change looks like                                                           |
-| ---------------- | ------------------------------------------------------------------------------------ |
-| `"fade"`         | The new wallpaper fades in over the old one. The default                              |
-| `"checkerboard"` | A chequered grid of squares wipes across, every other square half a step behind       |
-| `"circle"`       | A circle opens from the middle of the screen and grows out to the corners             |
-| `"flip"`         | The old wallpaper turns over like a card, and the new one is on its back              |
-| `"slide"`        | The new wallpaper slides in over the old one from a random edge                       |
-| `"wipe"`         | A straight edge sweeps across from a random side, uncovering the new wallpaper        |
-| `"blinds"`       | The new wallpaper opens in horizontal slats, like a blind                             |
-| `"zoom"`         | The new wallpaper settles back to size from slightly larger as it fades in            |
-| `"dissolve"`     | The new wallpaper arrives as a scatter of small tiles, each at its own moment         |
-| `"none"`         | No animation: the new wallpaper replaces the old one at once                          |
-| `"random"`       | A different effect from the list above (never `none`) each time, never the same one twice running |
+| Value            | Effect                                                               |
+| ---------------- | -------------------------------------------------------------------- |
+| `"fade"`         | Crossfade (default)                                                  |
+| `"checkerboard"` | A chequered grid of squares wipes across                             |
+| `"circle"`       | A circle opens from the centre                                       |
+| `"flip"`         | The old wallpaper turns over like a card                             |
+| `"slide"`        | The new wallpaper slides in from a random edge                       |
+| `"wipe"`         | An edge sweeps across from a random side                             |
+| `"blinds"`       | Horizontal slats open                                                |
+| `"zoom"`         | The new wallpaper fades in while settling from slightly larger       |
+| `"dissolve"`     | The new wallpaper arrives as scattered tiles                         |
+| `"none"`         | Instant replacement                                                  |
+| `"random"`       | A different effect each time (never `none`, never the same twice in a row) |
 
-`slide` and `wipe` pick their edge afresh on every change, whether chosen directly or by `random`. An unknown value is read as `"fade"`. The first wallpaper the shell paints at start-up appears without a transition, and changing either key never plays one by itself: it applies from the next change. A flip shows a dark fill behind the turning wallpaper for the moment it is edge-on.
-
-**A single, fixed wallpaper:**
-
-```toml
-[background]
-fit = "fill"
-
-[[background.entries]]
-path = "/home/user/wallpapers/wallpaper.jpg"
-shown = true
-```
+An unknown value reads as `"fade"`. The first wallpaper at start-up has no transition, and changing either transition key takes effect from the next change.
 
 ## Desktop Icons
 
-The `[desktop]` section puts a grid of pinned icons on the wallpaper: applications, files and folders. Double-clicking an item opens it — an application launches, a file opens in its default handler, and a folder opens your file manager. Clicking selects, dragging rearranges, and dropping one icon onto another swaps their places. The grid lines are only drawn while you are dragging.
+`[desktop]` puts a grid of pinned applications, files and folders on the wallpaper. It is on by default.
 
-Right-clicking an icon offers **Open**, **Open with…** (files and folders), **Rename** and **Remove from desktop**. Right-clicking bare desktop offers **Add application…**, **Add file or folder…**, **Organize** (compact the icons) and **Change background…** (jump to the wallpaper settings), then **Desktop settings…** and **Settings…**, which open on the screen you clicked. With the grid switched off (`enabled = false`), right-clicking the wallpaper still offers **Change background…** and **Settings…**.
+- Double-click opens an item: an app launches, a file opens in its default application, a folder opens in your file manager.
+- Click selects, drag moves, and dropping one icon on another swaps them.
+- Right-click an icon: **Open**, **Open with…** (files and folders), **Rename**, **Remove from desktop**.
+- Right-click bare desktop: **Add application…**, **Add file or folder…**, **Add widget…**, **Organize** (compact the icons), **Change background…**, **Desktop settings…**, **Settings…**. With the grid off, only **Change background…** and **Settings…**.
+- **Add application…** searches names, generic names and keywords ("internet" finds your browser).
 
-**Add application…** opens a searchable list of everything installed, each with its own icon — type to filter, arrow keys and Enter to pick, Escape to dismiss. It searches names, generic names and the keywords a desktop entry declares, so "internet" finds your browser. **Add file or folder…** opens the file picker, where folders are selectable as well as browsable.
-
-Everything here is also editable under **Settings → Shell → Desktop Grid**, which is where the pinned list is easiest to manage.
+Also editable under **Settings → Shell → Desktop Grid**.
 
 ```toml
 [desktop]
@@ -1979,58 +1410,47 @@ column = 1
 row = 0
 ```
 
-### Desktop Settings
+| Key           | Type    | Default | Description                                  |
+| ------------- | ------- | ------- | -------------------------------------------- |
+| `enabled`     | boolean | `true`  | Show the icon grid and widgets               |
+| `cell_width`  | number  | `96`    | Cell width in logical pixels (minimum 32)    |
+| `cell_height` | number  | `96`    | Cell height (minimum 32)                     |
+| `spacing`     | number  | `12`    | Gap between cells (minimum 0)                |
+| `padding`     | number  | `24`    | Inset from the screen edges inside the panels (minimum 0) |
+| `icon_size`   | number  | `48`    | Icon size within a cell (minimum 8)          |
+| `show_labels` | boolean | `true`  | Draw each icon's name                        |
 
-| Key           | Type    | Default | Description                                                     |
-| ------------- | ------- | ------- | --------------------------------------------------------------- |
-| `enabled`     | boolean | `false` | Whether the icon grid is drawn at all                            |
-| `cell_width`  | number  | `96`    | Width of one grid cell, in logical pixels (minimum 32)          |
-| `cell_height` | number  | `96`    | Height of one grid cell (minimum 32)                             |
-| `spacing`     | number  | `12`    | Gap between cells                                                |
-| `padding`     | number  | `24`    | Inset from the usable edges of the screen                        |
-| `icon_size`   | number  | `48`    | Rendered icon size within a cell (minimum 8)                     |
-| `show_labels` | boolean | `true`  | Whether each icon's name is drawn under it                       |
+The number of columns and rows is derived from each monitor's area left free by the panels. Every key applies live, except turning `enabled` on or off with no `[background]` entries, which needs a restart.
 
-The **number of columns and rows is not configurable** — it is derived from each monitor's usable area, so the same icon list fits displays of different sizes. The usable area excludes whatever your panels reserve, so an icon is never hidden behind a bar.
+Each `[[desktop.items]]` table pins one item. The desktop menu and settings page write these for you.
 
-Turning `enabled` on or off takes effect **after a restart** when no wallpaper is configured, because it decides whether the background surface is created at all. With a `[background]` wallpaper already set, the surface exists either way and the change applies live. Every other key here applies live.
+| Key      | Type   | Default  | Description                                               |
+| -------- | ------ | -------- | --------------------------------------------------------- |
+| `target` | string |          | Absolute path (required). For an app, its `.desktop` file |
+| `kind`   | string | inferred | `"app"`, `"file"` or `"folder"`; corrected from the disk if wrong |
+| `label`  | string | derived  | Display name; omit for the app's name or the file's basename |
+| `column` | int    | `0`      | Grid column from the left                                 |
+| `row`    | int    | `0`      | Grid row from the top                                     |
 
-### Desktop Items
-
-Each `[[desktop.items]]` block pins one thing. The settings UI and the desktop's own "Add…" menu write these for you.
-
-| Key      | Type   | Default   | Description                                                     |
-| -------- | ------ | --------- | --------------------------------------------------------------- |
-| `target` | string |           | Absolute path. Required — an entry without one is ignored        |
-| `kind`   | string | inferred  | `"app"`, `"file"` or `"folder"`                                  |
-| `label`  | string | derived   | Renames the icon. Omit to use the app's own name or the basename |
-| `column` | number | `0`       | Grid column, counting from 0 at the left                         |
-| `row`    | number | `0`       | Grid row, counting from 0 at the top                             |
-
-`target` is a **path** in every case, including applications — an app is pinned by the path to its `.desktop` file (usually under `/usr/share/applications`), not by a desktop id, so an entry in your own home directory works too.
-
-`kind` is re-derived from the target whenever it disagrees with what is actually on disk, so a hand-edited file cannot end up opening a directory as though it were a document. Clearing a `label` in the rename field restores the original name.
-
-An item whose target no longer exists is drawn dimmed rather than removed, so an unplugged drive or an offline network mount does not cost you your arrangement.
-
-Items on a cell that does not exist on a smaller monitor are drawn in the nearest free cell on that monitor only; the position you gave them is kept, so plugging the larger display back in restores the layout.
+- An item whose target no longer exists is dimmed, not removed.
+- On a monitor too small for an item's cell, it is drawn in the nearest free cell; the stored position is kept.
 
 ## Desktop Widgets
 
-Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for its menu: the options worth flipping in place (the weather card's unit, the news card's outlets), **Reset size**, **Remove widget**, and a link to the settings that configure it — the weather and stock cards share their bar module's page, and the rest the desktop's own. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
+Widgets are cards on the desktop grid that span several cells. Add one with **Add widget…** on the desktop's right-click menu. Drag a card to move it and a corner to resize it. Right-click a widget for its quick options (the weather unit, the news outlets), **Reset size**, **Remove widget**, and a link to its settings.
 
-Eight types ship:
+| `type`         | Shows                                                   | Min | Default | Max |
+| -------------- | ------------------------------------------------------- | --- | ------- | --- |
+| `media_player` | What is playing over MPRIS, with controls               | 2×1 | 3×2     | 6×4 |
+| `weather`      | Current conditions and forecast over an animated sky    | 2×1 | 3×2     | 6×4 |
+| `moon_phase`   | The Moon's phase, rise and set times                    | 2×1 | 3×2     | 6×4 |
+| `fortune`      | A line from `fortune` (needs the `fortune-mod` package) | 2×1 | 3×2     | 6×4 |
+| `tux`          | A penguin with something nice to say each day           | 1×1 | 1×1     | 4×3 |
+| `analog_clock` | The time on a dial, hour and minute hands               | 1×1 | 2×2     | 4×4 |
+| `stocks`       | Your stock watchlist                                    | 2×1 | 3×3     | 6×6 |
+| `news`         | Latest headlines, newest first                          | 2×1 | 3×3     | 6×6 |
 
-| `type` | Name | What it draws |
-| ------ | ---- | ------------- |
-| `media_player` | Media player | What is playing over MPRIS: art, title, transport, and a progress bar as the card grows |
-| `weather` | Weather | The current conditions and a forecast strip, over a sky animated to match |
-| `moon_phase` | Moon phase | Tonight's Moon drawn at its actual phase, with the times it rises and sets and what the phase means for tides, night light and eclipses |
-| `fortune` | Fortune | A line from `fortune(6)` over a lamp, with a button that asks for another |
-| `tux` | Tux | A penguin with something nice to say each day |
-| `analog_clock` | Analog clock | The time on a dial, with an hour hand and a minute hand and no second hand |
-| `stocks` | Stock market | Your watchlist: each ticker's price, its move today and where it sits in the day's range |
-| `news` | News | The latest headlines from AP, Reuters and other wire services and broadcasters, newest first |
+Spans are columns × rows.
 
 ```toml
 [[desktop.widgets]]
@@ -2042,71 +1462,34 @@ column_span = 3
 row_span = 2
 ```
 
-| Key           | Type   | Default    | Description                                                          |
-| ------------- | ------ | ---------- | -------------------------------------------------------------------- |
-| `type`        | string |            | One of the types above. Required — an entry without one is ignored    |
-| `id`          | string | the type   | This widget's identity, so two of a kind can be told apart            |
-| `column`      | number | `0`        | Grid column of the top-left cell                                      |
-| `row`         | number | `0`        | Grid row of the top-left cell                                         |
-| `column_span` | number | `1`        | Width in cells, clamped to what the type allows                       |
-| `row_span`    | number | `1`        | Height in cells, clamped to what the type allows                      |
+| Key           | Type   | Default  | Description                                        |
+| ------------- | ------ | -------- | -------------------------------------------------- |
+| `type`        | string |          | A type from the table above (required)             |
+| `id`          | string | the type | Unique name; a duplicate is renamed `<type>-2`, …  |
+| `column`      | int    | `0`      | Column of the top-left cell                        |
+| `row`         | int    | `0`      | Row of the top-left cell                           |
+| `column_span` | int    | `1`      | Width in cells                                     |
+| `row_span`    | int    | `1`      | Height in cells                                    |
 
-A span outside what a type allows is clamped when it is drawn rather than rewritten in the file, so a layout authored when a widget allowed more room comes back at full size if that changes again. A `type` this build does not know is drawn as a placeholder and kept in the file, so an entry from a newer version survives a downgrade and there is still something to right-click.
-
-An icon in a widget's way is moved aside; a widget in an icon's way refuses the drop, since there is no exchange of places to make between one cell and six. **Organize** compacts the icons and never moves a widget.
+- Spans are clamped to the type's limits when drawn; the file is not rewritten.
+- An unknown `type` is drawn as a placeholder you can right-click and remove.
+- A widget moved over icons pushes them aside. Dropping an icon on a widget, or a widget on another widget, is refused. **Organize** never moves widgets.
 
 ### The Moon phase widget
 
-The phase, the illuminated fraction and the age of the Moon are the same everywhere on Earth, so this widget needs no configuration and works out of the box. Two things do depend on where you are, and both come from the location you set for the weather (**Settings → Shell → Modules → Weather**, or `[modules.weather] location`):
-
-- **Moonrise and moonset**, printed for the current day. A day with neither — which happens about once a month, and for weeks at a time inside the polar circles — says so rather than showing blanks.
-- **Which way up the disc is drawn.** South of the equator the Moon is seen rotated half a turn, so a waxing crescent is lit on the left.
-
-With no weather location set, the shell uses the same one-off IP lookup the weather does; if that is unavailable too, the card drops those two lines and keeps everything else.
+Needs no configuration. Rise and set times and the disc's orientation use the weather location (`[modules.weather] latitude` and `longitude`, or Settings → Shell → Modules → Weather). With none set, the weather's IP lookup is used. If that fails too, the card asks for a weather location in place of the times.
 
 ### The analog clock widget
 
-No configuration, and **no second hand** — deliberately. A hand that sweeps
-seconds is a repaint every second, on every monitor, for as long as the card is
-on screen; this one wakes when the minute changes and is idle in between, so a
-clock on the desktop costs nothing to leave there. The hour hand still moves
-continuously between the numerals, so half past six looks like half past six.
-
-The face buys its detail from the size you give it: at one cell it draws the
-twelve hour marks, at two it adds the sixty minute marks, and larger still it
-sets the hour numerals inside them. It is drawn in your theme — the dial takes
-`control_surface`, the marks and hands `foreground`, and the pivot `accent` —
-so it changes with everything else when you change themes.
+No configuration and no second hand; it redraws once a minute. Larger cards add minute marks, then numerals. Colours come from the theme: `control_surface` for the dial, `foreground` for marks and hands, `accent` for the centre.
 
 ### The stock market widget
 
-The same watchlist as the bar's stock market strip (`[modules.stocks]`), from the
-same poll: a ticker added from the strip's popup appears on the widget straight
-away, and the two always show the same price. Each row is the ticker, its price
-and its move today; widen the card and it adds the company name and a bar showing
-where the price sits between today's low and high, with the stretch since the
-open drawn in the day's colour. Click a row to open its page on Yahoo Finance.
-
-It is drawn in your theme — the card is the theme's popup surface, the text its
-`popup_foreground` and `muted`, the range marker its `accent` — and the green and
-red are darkened or lightened just enough to read on whatever `popup_background`
-the theme has. With no tickers on the list it offers a button to the setting
-that holds them.
+Shows the same watchlist as the [stocks bar module](#stock-market) (`[modules.stocks] symbols`), from the same poll. Each row has the ticker, price and today's move. Wider cards add the company name and the day's range. Click a row to open it on Yahoo Finance.
 
 ### The news widget
 
-The latest headlines, newest first, each with the outlet it came from and when it
-went up. Click a story to open it in your browser. The same story carried by two
-sources is shown once. The arrows in the corner read the feeds again straight
-away; otherwise they are read every `refresh_minutes`, and not at all while no
-news card is on the desktop.
-
-Out of the box it reads the **Associated Press** and **Reuters**, the two wire
-services most of the press reprints. Neither publishes an RSS feed of its own any
-more, so both are read through Google News, which indexes them: the headlines are
-theirs, and a click goes through Google's redirect to the story on their site.
-NPR, the BBC and PBS NewsHour are a click away in **Settings → Shell → Desktop Grid →
-News widget**, and any other RSS or Atom feed can be added there by its address.
+Headlines from all chosen feeds, newest first, with outlet and time. A story carried by two sources is shown once. Click a story to open it in your browser. The refresh button reads the feeds now. Feeds are only read while a news card is on the desktop. Choose outlets under **Settings → Shell → Desktop Grid → News widget**.
 
 ```toml
 [news]
@@ -2114,27 +1497,26 @@ sources = ["ap", "reuters", "npr", "https://example.com/rss.xml"]
 refresh_minutes = 15
 ```
 
-| Key               | Type             | Default             | Description                                                              |
-| ----------------- | ---------------- | ------------------- | ------------------------------------------------------------------------ |
-| `sources`         | array of strings | `["ap", "reuters"]` | What to read: the short names below, or a feed's `https://` address       |
-| `refresh_minutes` | int              | `15`                | How often the feeds are read again while a news card is on screen (5–1440) |
+| Key               | Type             | Default             | Description                                  |
+| ----------------- | ---------------- | ------------------- | -------------------------------------------- |
+| `sources`         | array of strings | `["ap", "reuters"]` | Short names below, or `http(s)://` RSS/Atom feed URLs |
+| `refresh_minutes` | int              | `15`                | Minutes between reads, 5–1440                |
 
-| Short name | Source |
-| ---------- | ------ |
-| `ap`       | The Associated Press, through Google News |
-| `reuters`  | Reuters, through Google News |
-| `npr`      | NPR News |
-| `bbc`      | BBC News — World |
-| `pbs`      | PBS NewsHour |
+| Short name | Source                                    |
+| ---------- | ----------------------------------------- |
+| `ap`       | Associated Press (via Google News)        |
+| `reuters`  | Reuters (via Google News)                 |
+| `npr`      | NPR News                                  |
+| `bbc`      | BBC News — World                          |
+| `pbs`      | PBS NewsHour                              |
 
-An entry that is neither a short name nor an `http`/`https` address is ignored.
-An empty list is taken at its word and the card offers to choose some. When one
-source cannot be reached its last stories stay on the card and the reason is
-written under them; click it to try again.
+- Any other entry is ignored. An empty list shows no news, and the card offers to choose sources.
+- AP and Reuters publish no RSS, so they are read through Google News; links go through Google's redirect.
+- If a source fails, its last stories stay and the error is shown under them; click it to retry.
 
 ## Lock Screen
 
-The `[lock]` section configures the lock screen, reached from **Lock** in the power menu (the power icon in the top panel). Locking uses the `ext-session-lock-v1` Wayland protocol, so the compositor hides every other surface — including the shell's own panels — and blanks any monitor that has no lock surface.
+`[lock]` configures the lock screen, opened from **Lock** in the power menu (or by the power button with `[power] key_action = "lock"`). The compositor hides every other surface while locked and blanks any monitor without a lock surface.
 
 ```toml
 [lock]
@@ -2144,74 +1526,26 @@ show_username = true
 blur_sigma = 18.0
 ```
 
-| Key             | Type    | Default            | Description                                                        |
-| --------------- | ------- | ------------------ | ------------------------------------------------------------------ |
-| `background`    | string  | shipped wallpaper  | Absolute path to an image **or** video shown behind the lock screen |
-| `fit`           | string  | `"fill"`           | How the wallpaper is sized (same values as `[background]`)         |
-| `show_username` | boolean | `true`             | Show the account's name above the unlock button                     |
-| `blur_sigma`    | number  | `18.0`             | Blur applied to the wallpaper once the password field appears; `0` leaves it sharp |
+| Key             | Type    | Default           | Description                                              |
+| --------------- | ------- | ----------------- | -------------------------------------------------------- |
+| `background`    | string  | shipped wallpaper | Absolute path to an image or video                       |
+| `fit`           | string  | `"fill"`          | Same values as [`[background]`](#background)             |
+| `show_username` | boolean | `true`            | Show your name above the unlock button                   |
+| `blur_sigma`    | number  | `18.0`            | Wallpaper blur while the password field shows, 0–100; `0` is none |
 
-Unlike `[background]`, this is a single wallpaper rather than a rotating list — but it accepts the same image and video formats, and videos loop silently. If `background` is unset or the file is missing, the shipped default (`$PREFIX/share/moonswing/lock-wallpaper.jpg`) is used, falling back to a plain dark fill.
+- One wallpaper, no rotation. Images as for `[background]`, plus MP4, MKV, WebM, MOV, AVI and M4V videos, which loop silently.
+- If `background` is unset or missing, the shipped `lock-wallpaper.jpg` is used, then a plain dark fill.
+- Press Unlock, Enter or any key to show the password field; a typed character goes into it. Escape once leaves the field, twice hides it.
 
-`blur_sigma` is clamped to `0`–`100`.
+**Requirements**
 
-### Behaviour
-
-The lock screen starts as a clock, date, and the account name over the wallpaper. Pressing the unlock button, Enter, or **any other key** reveals the password field and blurs the wallpaper; a printable first keystroke is carried into the field rather than swallowed. Pressing Escape once returns focus out of the field, and a second Escape hides it again.
-
-### Requirements
-
-- **`libgtk-session-lock0`** must be installed (`sudo apt install libgtk-session-lock0`). Without it the Lock button reports that locking is unavailable rather than failing silently.
-- The compositor must implement `ext-session-lock-v1` (Mir/Miracle does).
-- Passwords are checked with **PAM**. Installing the bundled service file with `sudo make install-pam` is recommended; without it the shell falls back to the system `login` service, which works but attributes attempts to `login` in the auth logs.
+- `libgtk-session-lock0`. Without it Lock does nothing (the reason is only logged).
+- A compositor with `ext-session-lock-v1` (Mir and Miracle have it).
+- Passwords are checked with PAM. Run `sudo make install-pam` to install the `moonswing` service; without it the `login` service is used, so attempts are logged as `login`.
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Events appear only once an account is signed in under Settings › Accounts: a Google account (see Google Account), a CalDAV server (see CalDAV calendars below), or any number of both. Settings › Shell › Calendar holds this section and, per signed-in account, which of its calendars are read.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `week_start` | string | `"sunday"` | First column of the month grid and the week view: `"sunday"` or `"monday"`. |
-
-### Events on the calendar
-
-With a Google account or a CalDAV calendar signed in and chosen, events are drawn on the calendar itself, every account's together. Each day of the month holds a bar per event, as many as the cell has room for, then **+N more**, which opens that day. An all-day or multi-day event is a filled banner in its calendar's colour; a timed one is a dot, its start time and its title.
-
-**Month**, **Week** and **Day** above the grid switch the view. Week and Day are a time grid: each timed event is a box as tall as the meeting is long, events that overlap share the column, all-day events sit in a strip across the top, and a line marks the current time. They open scrolled to the working day. In Week, clicking a day's name opens that day. The chevrons step by a month, a week or a day.
-
-Clicking any event opens its details: when, which calendar (and account), where, and the description. The buttons under it go where the event links: **Join** for a Google Meet, Zoom or Teams call, **Open in Google Calendar** (for a Google event), and one per attachment or link in the description.
-
-If a calendar cannot be read, its name and the server's reason appear above the grid with **Retry**. The other calendars' events stay on screen.
-
-### CalDAV calendars
-
-The CalDAV servers signed in under Settings › Accounts (see Task list sync, under the todo board, for signing in) can show their calendars of events here, as many servers as you like. Settings › Shell › Calendar lists each server's calendars under its own heading, with a switch each; none is shown until it is switched on. The calendars are looked for again each time that page opens, so one made on the server since appears there.
-
-A recurring event is expanded by the server, into its occurrences in the month on screen. For a server that does not, the shell reads the common rules itself (daily, weekly on given days, monthly on a day of the month, yearly, with an interval, a count or an end date, and the dates excepted); an event with a rule it cannot read shows its first occurrence only. Times written in a named time zone are converted with the time zone database the world clocks use.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `calendars` | array of strings | `[]` | The calendars to show, by their address on the server, as Settings › Shell › Calendar writes them. One list serves every account, since an address belongs to one server. |
-| `show_in_calendar` | bool | `true` | Draw the chosen calendars' events on the Calendar tab, and offer its Week and Day views. |
-| `refresh_minutes` | int | `5` | How often events are read again while the Calendar tab is open (1–60). Nothing is fetched while it is closed. |
-
-```toml
-[caldav]
-calendars = ["https://dav.example.com/dav/calendars/me/personal/"]
-show_in_calendar = true
-refresh_minutes = 5
-```
-
-### World Clocks
-
-The column on the right of the tab shows the local time as an analog dial and a digital readout, and under it one row per `[[calendar.world_clocks]]` entry. The **+** button on that column writes these entries for you, each row's **✕** removes it and dragging a row moves it, so there is nothing to configure in the Settings tab — the keys are documented because the file is yours to edit.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `zone` | string | | An IANA time zone name, e.g. `Europe/London`. Required — an entry without one is ignored. |
-| `label` | string | derived | Renames the row. Omit it to use the zone's city (`Europe/London` → London). |
-
-Rows are drawn in the order they appear in the file, and a drag rewrites that order. Offsets follow daylight saving automatically, from the IANA database bundled with the shell, and a row whose calendar date differs from yours is badged `+1d` or `-1d`. A `zone` this build's database does not know renders as "Unknown time zone" — with its remove button intact — rather than being silently deleted.
+`[calendar]` configures the Calendar tab (click the clock): a month grid beside the local time and your world clocks. It shows events only once a Google or CalDAV account is signed in under Settings › Accounts and its calendars are switched on under Settings › Shell › Calendar.
 
 ```toml
 [calendar]
@@ -2225,50 +1559,63 @@ zone = "Asia/Tokyo"
 label = "HQ"
 ```
 
-## Google Account
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `week_start` | string | `"sunday"` | First day of the week: `"sunday"` or `"monday"` |
 
-Settings › **Accounts** signs the shell in to Google accounts, which any part of the shell can then use. Add as many as you like, such as a work and a personal one. Everything reads all of them. Two parts do today: the Calendar tab shows the accounts' events, and the todo board can hold today's meetings.
+### Events on the calendar
 
-**The accounts themselves are not in this file.** The grants Google hands back are stored in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
+- **Month**, **Week** and **Day** switch the view (shown only while events are). **+N more** in a day cell opens that day.
+- Click an event for its details and buttons: **Join** (Meet, Zoom, Teams), **Open in Google Calendar**, and one per link in the description.
+- A calendar that can't be read shows its reason and **Retry** above the grid; the others stay on screen.
 
-### Signing in
+### CalDAV calendars
 
-There is nothing to set up. Open Settings › Accounts and press **Sign in with Google**. The shell opens Google's consent page in your browser, running as Moonswing's own Google app. It listens on `127.0.0.1` on a random port for Google to send the browser back, and protects the exchange with PKCE.
+Sign in to one or more CalDAV servers under Settings › Accounts (as for the [Todo](#todo) task list sync), then switch calendars on under Settings › Shell › Calendar.
 
-- **Google will say the app is unverified.** Moonswing's Google app has not been through Google's verification yet. To continue, choose **Advanced**, then **Go to Moonswing (unsafe)**. The consent screen then lists the one permission asked for: to see your calendars.
-- **Until the app is verified, Google limits it to 100 users.** If sign-in fails with a message about the app's user cap, that limit has been reached.
-- **Your calendar goes straight from Google to your computer.** The project runs no server, so nothing passes through or is stored anywhere but your own machine. See the [privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/).
-- **Add account** signs in another account. Google shows its account chooser so you can pick a different one. Signing in again as an account that is already there replaces its sign-in rather than listing it twice.
-- **Sign out** revokes that account's grant at Google and deletes it from disk. The other accounts stay signed in. You can also revoke a grant from [your Google account's third-party connections](https://myaccount.google.com/connections).
-- **Calendar settings** takes you to Settings › Shell › Calendar, where the rest of this section is set: which of each account's calendars are read, and what they are used for.
-
-Earlier builds had you create your own OAuth client. A sign-in made that way cannot carry over. The Accounts page says so once, forgets it, and **Sign in with Google** reconnects you.
-
-### `[google]`
+```toml
+[caldav]
+calendars = ["https://dav.example.com/dav/calendars/me/personal/"]
+show_in_calendar = true
+refresh_minutes = 5
+```
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Shell › Calendar lists each signed-in account's calendars under its own heading, with a switch each. |
-| `show_in_calendar` | bool | `true` | Draw the accounts' events on the Calendar tab, and offer its Week and Day views. |
-| `todo_sync` | bool | `false` | Put each of today's timed events on the todo board as a card (see below). |
-| `refresh_minutes` | int | `5` | How often events are read again while something is showing them (1–60). Nothing is fetched while nothing shows them. |
+| `calendars` | array of strings | `[]` | Calendar URLs to show, as Settings writes them; one list for every server |
+| `show_in_calendar` | bool | `true` | Show these calendars' events on the Calendar tab |
+| `refresh_minutes` | int | `5` | Re-read interval while the tab is open (1–60); nothing is fetched while it is closed |
 
-### Meetings on the todo board
+If the server doesn't expand recurring events, the shell handles simple daily, weekly, monthly and yearly rules; other rules show only the first occurrence.
 
-With `todo_sync` on, each timed event today gets a card holding its time, its join link (Meet, a conference link, or a URL in the location) and a link to the event. The card moves on its own: **Todo** until the meeting starts, **In Progress** while it runs, **Finished** once it ends. Each move is recorded at the meeting's own start and end time, even when the shell catches up after a suspend.
+### World Clocks
 
-- **A card you move is yours.** After you drag a card to another column, the sync stops moving it. It still keeps the card's time and link up to date.
-- **An edit you make stays.** The sync rewrites a card's title or body only while it is still the text the sync wrote.
-- **A deleted card stays deleted.** The shell remembers the event and does not put it back.
-- **A meeting that disappears from today's calendar** (cancelled, declined, or moved to another day) moves its card to **Abandoned** rather than deleting it.
+One row per `[[calendar.world_clocks]]` entry. The tab edits these for you: **+** adds, **✕** removes, drag to reorder.
 
-All-day events stay in the Calendar tab and never become cards. A meeting you are invited to on two of your accounts makes one card, not two.
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `zone` | string | — | IANA time zone, e.g. `Europe/London`. Required; an entry without one is ignored |
+| `label` | string | the zone's city | Row name |
 
-### Calendars across accounts
+An unknown zone shows "Unknown time zone" and can still be removed.
 
-Calendar ids are unique across Google accounts (a main calendar's id is the account's address), so one `calendars` list covers every account. Each id is read through the first account whose calendar list holds it, so a calendar shared with two of your accounts is read once. An id no account lists, such as a public calendar you typed in by hand, is read through the first account.
+## Google Account
 
-Switching one account's main calendar off in Settings › Shell › Calendar while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
+Sign in to one or more Google accounts under Settings › **Accounts** to show their events on the Calendar tab and, optionally, today's meetings on the todo board.
+
+### Signing in
+
+1. Press **Sign in with Google**. Google's consent page opens in your browser.
+2. Google warns that the app is unverified. Choose **Advanced**, then **Go to Moonswing (unsafe)**.
+3. Allow the one permission asked for: read-only access to your calendars (`calendar.readonly`).
+
+- Nothing to set up: the shell uses Moonswing's own Google app. Data goes straight from Google to your machine ([privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/)).
+- Until the app is verified, Google caps it at 100 users; a sign-in error about the user cap means that limit is reached.
+- **Add account** adds another account. **Sign out** revokes that account's grant at Google and deletes it.
+- Sign-ins are stored in `~/.local/state/moonswing/google-account.json` (mode 0600), not `config.toml`.
+- A sign-in from an earlier build's own OAuth client is dropped with a notice; sign in again.
+
+### `[google]`
 
 ```toml
 [google]
@@ -2278,11 +1625,26 @@ todo_sync = true
 refresh_minutes = 5
 ```
 
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `calendars` | array of strings | `["primary"]` | Calendar ids to read; `primary` means every account's main calendar |
+| `show_in_calendar` | bool | `true` | Show the events on the Calendar tab |
+| `todo_sync` | bool | `false` | Put today's timed events on the todo board |
+| `refresh_minutes` | int | `5` | Re-read interval while anything shows the events (1–60) |
+
+One list covers every account; Settings › Shell › Calendar has a switch per calendar. Switching off one account's main calendar replaces `primary` with the other accounts' addresses.
+
+### Meetings on the todo board
+
+With `todo_sync = true`, each timed event today becomes a card with its time, its join link and a link to the event. The card moves itself: **Todo** before the meeting, **In Progress** during it, **Finished** after it.
+
+- A card you move, edit or delete stays that way; the sync still updates a moved card's time and link.
+- A meeting that leaves today's calendar (cancelled, declined, moved) sends its card to **Abandoned**.
+- All-day events never become cards. A meeting on two accounts makes one card.
+
 ## Code Dashboard
 
-The overview's **Code** tab, after Kanban, is one dashboard for everything waiting on you across GitHub and GitLab: the reviews somebody has asked you for, your own open pull and merge requests and what each one needs, the issues assigned to you, your inbox, and what you merged lately. Anything left too long is called **stale**, so nothing quietly sits waiting on you or on somebody else.
-
-It reads the accounts linked under Settings › **Accounts** — GitHub (see the GitHub module's *Signing in*), GitLab (below), or both — and nothing else. With neither linked, the tab says what it would show and has a button that goes to Accounts. Nothing is read while the tab is not the one showing.
+The overview's **Code** tab lists what is waiting on you across GitHub and GitLab: review requests, your open pull and merge requests, issues assigned to you, your inbox, and what you merged recently. It reads the GitHub and GitLab accounts linked under Settings › **Accounts**, and only while the tab is showing.
 
 ```toml
 [code]
@@ -2295,82 +1657,58 @@ refresh_minutes = 5
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `review_stale_days` | int | `2` | Days a review request can wait on you before it is stale (1–365). Short, because somebody else is waiting. |
-| `stale_days` | int | `7` | Days one of your own open pull or merge requests can go without activity before it is stale (1–365). |
-| `issue_stale_days` | int | `14` | Days an issue assigned to you can go without activity before it is stale (1–365). |
-| `shipped_days` | int | `7` | How far back the **Shipped** list reaches for your merged changes (1–90). |
-| `refresh_minutes` | int | `5` | How often both forges are read again while the tab is showing (1–120). |
+| `review_stale_days` | int | `2` | Days before a review request is stale (1–365) |
+| `stale_days` | int | `7` | Days without activity before your own open change is stale (1–365) |
+| `issue_stale_days` | int | `14` | Days without activity before an assigned issue is stale (1–365) |
+| `shipped_days` | int | `7` | How far back **Shipped** reaches (1–90) |
+| `refresh_minutes` | int | `5` | Re-read interval while the tab is showing (1–120) |
 
-Settings › Shell › **Code Dashboard** edits the same keys; the sliders button at the top right of the tab goes there.
+Settings › Shell › **Code Dashboard** edits these; the sliders button on the tab opens it.
 
 ### What the tab shows
 
-- **Four numbers across the top.** Review requests, your changes, assigned issues, and how many of them are stale. Each is also a filter: click one to show only that list, and the **Stale** tile to show only what has gone quiet, in every list. Click it again for everything.
-- **Review requests**, longest-waiting first — a queue, not a feed: the one somebody has waited on longest is the one to go to next.
-- **Your changes**, with what each needs: *Conflicts*, *Changes requested* and *Checks failing* in red come first, then whatever has gone stale, then the rest. *Ready to merge* means approved, passing and mergeable; *Draft* and *Checks running* are said quietly.
-- **Assigned issues**, stale first.
-- **Inbox**: GitHub's notifications (the same list the GitHub module shows, read on its cadence) and GitLab's to-dos, together, unread first. The tick beside a row marks it read or done; the double tick marks the lot.
-- **Shipped**: what you merged within `shipped_days`.
-
-Every row opens its page in your browser. With both forges linked, each row carries its forge's mark, and clicking an account chip at the top narrows the whole tab to that forge.
-
-**How stale is measured.** From the last activity on the item — a push, a comment, a review. Past half its threshold the age turns amber; past the whole threshold it becomes an hourglass pill with an amber bar down the row's edge, and the section heading counts it. Hover the age for how long it has been quiet and what the limit is.
+- **Tiles** at the top count each list and the stale items; click one to filter, again to clear.
+- **Review requests**, longest-waiting first; **Your changes**, those needing action (*Conflicts*, *Changes requested*, *Checks failing*) first; **Assigned issues**, stale first.
+- **Inbox**: GitHub notifications and GitLab to-dos. The tick marks one read or done; the double tick marks all.
+- **Shipped**: your merges within `shipped_days`.
+- Rows open in your browser. With both forges linked, an account chip filters to one.
+- Staleness counts from the last push, comment or review; the age turns amber at half the threshold.
 
 ### GitLab
 
-GitLab — gitlab.com or a self-managed instance — is linked on its own card under Settings › **Accounts** with a **personal access token** rather than a browser sign-in, because GitLab's browser sign-in needs an application registered on each instance. Type the instance (it defaults to `gitlab.com`), press **Create a token** — your instance's token page opens with the name *Moonswing* and the `read_api` scope already filled in — choose an expiry, create it, paste it in, and **Connect**. The shell asks GitLab whose token it is before keeping anything, so a typo is said on the card.
+GitLab (gitlab.com or a self-managed instance) is linked with a personal access token:
 
-The instance, the token and your user name are kept in `~/.local/state/moonswing/gitlab-account` (mode 0600, in a 0700 directory), never in `config.toml`. **Sign out** deletes the file; revoking the token is done on the page it was made on, which the key button beside **Sign out** opens. Tokens expire: when GitLab stops accepting one, the account signs out with the reason on the card.
+1. Under Settings › **Accounts**, enter the instance (default `gitlab.com`).
+2. Press **Create a token**. Your instance's token page opens with the name *Moonswing* and the `read_api` scope filled in.
+3. Pick an expiry, create the token, paste it in and press **Connect**. The shell checks the token before saving it.
 
-`read_api` is read-only, which is everything the tab does except marking to-dos done: that needs a token with the `api` scope, and with `read_api` the tab says so rather than failing silently. To-dos can still be opened either way.
+- The instance, token and user name are stored in `~/.local/state/moonswing/gitlab-account` (mode 0600), never in `config.toml`.
+- **Sign out** deletes that file; the key button beside it opens the token page, where you revoke the token.
+- An expired or revoked token signs the account out, with the reason on the card.
+- Marking to-dos done needs the `api` scope; with `read_api` the tab says so.
 
 ### Private GitHub repositories
 
-The GitHub sign-in asks for the `notifications` scope by default, which reads public repositories only. To see review requests, pull requests and issues in **private** repositories, add `repo` to `scopes` under `[modules.github]` and sign in again — see the GitHub module's *Signing in*. The tab says so at the bottom of its lists while it is reading without it.
+The GitHub sign-in asks only for `notifications` by default, which leaves out private repositories. Add `repo` to `scopes` under `[modules.github]` and sign in again (see [GitHub](#github)).
 
 ## Notifications
 
-The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — *Silence notifications* in the bell's right-click menu, or the switch at the foot of the notification panel — so it is documented because the file is yours to edit, not because you have to.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `silenced` | boolean | `false` | Whether notifications are silenced. |
-
-Silencing is about interruption, never about delivery. The shell keeps acting as the notification daemon and every notification still arrives and stacks up in the panel; what stops is the shell asking for your attention — the bell no longer shakes, the chime does not play, and the floating card that plants itself in the corner of every monitor does not appear. The bell wears a crossed-out glyph while the switch is on, so the state is never invisible.
-
-The sound itself is configured in `[modules.notifications]`, not here: this key is a decision about the machine, and that one is an option of the module that plays it.
-
-It is a file key rather than state that dies with the process on purpose: a shell that quietly started interrupting you again after a restart would be the one failure a "do not disturb" switch may not have.
+`[notifications]` stores the notification bell's **silence** switch. The shell writes it when you use *Silence notifications* in the bell's right-click menu or the switch in the notification panel. It survives a restart.
 
 ```toml
 [notifications]
 silenced = false
 ```
 
-## On-Screen Indicator
-
-The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes, and the sound a volume change makes. The indicator is an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
-
-The shell only *watches* these values; it does not bind the keys. Whatever already applies the change (your compositor's media-key bindings, or the shell's own volume slider) keeps doing so, and the indicator follows. Brightness is read from `/sys/class/backlight`, so machines without a panel backlight simply never see the sun indicator.
-
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether to show the indicator at all. |
-| `hide_delay_ms` | integer | `1500` | How long the indicator stays up after the last change. Clamped to a minimum of 100. |
-| `margin` | integer | `96` | Distance from the bottom edge of the screen, in pixels. |
-| `volume_sound` | string | `"pop"` | What plays when the output volume changes or is unmuted. See below. |
-| `volume_sound_volume` | float | `0.6` | How loud that sound is, from 0 to 1. Clamped to that range. |
+| `silenced` | bool | `false` | Silence notifications |
 
-A volume change also makes a small sound, played through the output that just changed — so you hear the new level before any music does. A mute is silent; the unmute that follows is not. A volume key held down ticks at most about eight times a second rather than buzzing. The sound works with `enabled = false` too: switching the card off leaves it playing.
+While silenced, notifications still arrive and collect in the panel, but the bell doesn't shake, the chime doesn't play and the floating card doesn't appear. The bell shows a crossed-out icon. The chime itself is set under `[modules.notifications]`.
 
-`volume_sound` takes the same spellings as every other sound key:
+## On-Screen Indicator
 
-- **A shipped sound** — `pop` (a short, soft tone; the default), `tick` (a dry click) or `blip` (a brighter tone that carries over music). They are synthesised by the shell itself, so they are always there and are free software under the shell's own licence.
-- **A sound-theme name** — looked up in the `sounds/` directories of your XDG data dirs. `audio-volume-change` is the stock sound from `sound-theme-freedesktop`, if you would rather hear what other desktops play.
-- **A path** to an audio file of your own; `~/` is expanded.
-- **`none`** (or `off`, `silent`) for no sound.
-
-A name that finds nothing is not treated as silence: Settings › Shell › Volume & Sound says what is wrong, and its play button previews the sound. Both keys are live, but if the indicator *and* the sound were both off when the shell started, nothing is watching the volume until it is restarted.
+`[osd]` configures the indicator shown above the bottom of every monitor when the volume, microphone volume or screen brightness changes, and the sound a volume change makes. The shell only watches these values; your existing key bindings still change them. Brightness needs a backlight under `/sys/class/backlight`.
 
 ```toml
 [osd]
@@ -2381,24 +1719,28 @@ volume_sound = "pop"
 volume_sound_volume = 0.6
 ```
 
-## Screen Sharing
-
-The `[screenshare]` section configures the shell's **xdg-desktop-portal ScreenCast backend**. With it installed, an application asking to share your screen (a browser calling `getDisplayMedia`, a video call, OBS) raises the shell's own picker: a full-screen overlay showing a live preview of every monitor and every open window. Nothing is shared until you choose a source and press Share — dismissing the picker with Escape or a click outside denies the request.
-
-Both monitors and individual windows can be shared. Frames reach the application as a PipeWire video stream.
-
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether to claim the ScreenCast backend at all. Set false to leave screen sharing to another backend such as `xdg-desktop-portal-wlr`. |
-| `preview_fps` | integer | `10` | Frame rate for the picker's live previews. Clamped to 1–60. Deliberately low: the picker captures every monitor *and* every window at once. |
-| `max_fps` | integer | `0` | Cap on the shared stream's frame rate. `0` follows the monitor's refresh rate. |
-| `cursor` | string | `"app"` | Whether the shared stream shows the pointer. `"app"` does what the application asked; `"always"` paints the pointer into every frame; `"never"` leaves it out. See [The pointer](#the-pointer) below. |
+| `enabled` | bool | `true` | Show the indicator (restart to apply) |
+| `hide_delay_ms` | int | `1500` | How long it stays up after the last change, in ms (min 100; restart to apply) |
+| `margin` | int | `96` | Distance from the bottom of the screen, in pixels (applies the next time it appears) |
+| `volume_sound` | string | `"pop"` | Sound when the output volume changes or is unmuted |
+| `volume_sound_volume` | float | `0.6` | Sound volume, 0–1 |
+
+`volume_sound` accepts:
+
+- a built-in sound: `pop`, `tick` or `blip`;
+- a sound-theme name from your XDG `sounds/` directories, e.g. `audio-volume-change`;
+- a path to an audio file (`~/` is expanded);
+- `none`, `off` or `silent`.
+
+The sound plays at the new level, even with `enabled = false`; muting is silent. Sound keys apply live, but if the indicator and the sound were both off at start-up, restart to turn either on. Settings › Shell › Volume & Sound previews the sound and reports one it can't find.
+
+## Screen Sharing
+
+`[screenshare]` configures the shell's xdg-desktop-portal ScreenCast backend. When an application asks to share your screen (a browser, a video call, OBS), the shell shows a picker with live previews of every monitor and window. Nothing is shared until you pick a source and press Share; Escape or a click outside denies the request. Frames go to the application as a PipeWire stream.
 
 ```toml
-[polkit]
-enabled = true
-max_attempts = 3
-
 [screenshare]
 enabled = true
 preview_fps = 10
@@ -2406,80 +1748,78 @@ max_fps = 0
 cursor = "app"
 ```
 
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Serve ScreenCast; set `false` to leave it to another backend such as `xdg-desktop-portal-wlr` (restart to apply) |
+| `preview_fps` | int | `10` | Frame rate of the picker's previews (1–60) |
+| `max_fps` | int | `0` | Cap on the shared stream's frame rate; `0` follows the monitor's refresh rate (restart to apply) |
+| `cursor` | string | `"app"` | Pointer in the stream: `"app"`, `"always"` or `"never"`; see [The pointer](#the-pointer) |
+
 ### The pointer
 
-An application asks for one of three ways to get the pointer when it starts sharing:
+Applications ask for the pointer to be hidden, painted into the frames, or sent as metadata for the application to draw itself. Chrome, Chromium and Electron apps always ask for metadata.
 
-- **hidden** — no pointer in the stream at all;
-- **embedded** — the pointer painted into every frame;
-- **metadata** — frames *without* the pointer, plus its position and image sent alongside each one, so the application draws it itself.
+- `"app"` gives each application what it asked for.
+- `"always"` paints the pointer into every frame. Use it for a recorder that hides the pointer and can't draw its own (for example Recordly; turn off its own pointer to avoid seeing two).
+- `"never"` keeps the pointer out.
 
-Chrome, Chromium and every Electron app (Discord, Slack, screen recorders built on Electron) always ask for **metadata** on Linux, and draw the pointer from it. With the default `cursor = "app"` the shell gives each application the mode it asked for. If you change nothing else, the pointer shows up the way that application intends.
-
-Set `cursor` when the application's choice is the wrong one for you:
-
-- `cursor = "always"` paints the pointer in, whatever was asked. Use it for a recorder that hides the pointer, meaning to draw one of its own, and then can't. **Recordly** is one: on Wayland it has no way to see where the pointer is, so its own animated pointer never moves. With `"always"` the real pointer is in the recording instead. Turn Recordly's own pointer off, or you will see both.
-- `cursor = "never"` keeps the pointer out of every share.
-
-The setting is read each time sharing starts, so an edit applies to the next share without a restart.
-
-Metadata needs a compositor that can report the pointer for a capture (`ext-image-copy-capture-v1`'s cursor sessions, which miracle-wm has). Without that the shell does not offer metadata, and those applications fall back to sharing with no pointer.
+`cursor` is read each time sharing starts. Metadata needs compositor support (`ext-image-copy-capture-v1` cursor sessions, which miracle-wm has); without it those applications share with no pointer.
 
 ### Requirements
 
-- **A compositor with `ext-image-copy-capture-v1`** — miracle-wm built against MirAL 5.6 or newer. Without it the feature disables itself and logs why.
-- **PipeWire 1.0 or newer**, which every current desktop already runs.
-- **The portal files installed.** Two of them: a `.portal` that tells xdg-desktop-portal the shell implements ScreenCast, and a `-portals.conf` that prefers it over any other backend claiming the same interface.
-
-  From a source build, `make install` (or `make install-portal`) writes:
+- A compositor with `ext-image-copy-capture-v1` (miracle-wm built against MirAL 5.6 or newer). Without it the feature turns itself off and logs why.
+- PipeWire 1.0 or newer.
+- The portal files. `make install` (or `make install-portal`) writes:
   - `~/.local/share/xdg-desktop-portal/portals/moonswing.portal`
-  - `~/.config/xdg-desktop-portal/mir-portals.conf` (only written if absent, so an existing preference is never overwritten)
+  - `~/.config/xdg-desktop-portal/mir-portals.conf`, only if it doesn't exist; otherwise it prints the lines to add
 
-  then run `systemctl --user restart xdg-desktop-portal` once.
+  Then run `systemctl --user restart xdg-desktop-portal` once.
+- **The snap does this for you**, system-wide on install and per user on first run, and restarts xdg-desktop-portal. `snap remove` removes them but leaves the per-user `*-portals.conf`. With `enabled = false` the snap registers nothing.
 
-  **The snap does all of this for you.** Its install hook writes `/usr/share/xdg-desktop-portal/portals/moonswing.portal` and `/usr/share/xdg-desktop-portal/{miracle-wm,mir}-portals.conf`; the launcher writes the same pair under `~/.local/share` and `~/.config` on first run, and restarts xdg-desktop-portal itself. `snap remove` deletes both sets again. Nothing is manual.
+Existing files are never edited. If one of your `~/.config/xdg-desktop-portal/*-portals.conf` sends ScreenCast elsewhere, it wins; the snap logs which file. To use the shell, set:
 
-  Two names for the conf because `XDG_CURRENT_DESKTOP` is `miracle-wm:mir`, and xdg-desktop-portal tries `<desktop>-portals.conf` for each name in that list before falling back to the generic `portals.conf`. Two *locations* because of precedence: `portals.conf(5)` searches `$XDG_CONFIG_HOME`, then `$XDG_CONFIG_DIRS`, then `/etc`, then `$XDG_DATA_HOME`, then `$XDG_DATA_DIRS`. `/usr/share` is the last of those, which makes the system-wide copy a machine default that never out-ranks a choice you made; only the per-user copy is high enough to beat an existing `~/.config/xdg-desktop-portal/portals.conf`.
+```ini
+[preferred]
+org.freedesktop.impl.portal.ScreenCast=moonswing
+```
 
-  Nothing you wrote is ever edited. If a `~/.config/xdg-desktop-portal/*-portals.conf` already points ScreenCast at another backend it wins, and the shell logs which file and which line to change. Setting `enabled = false` above also stops the snap registering the backend at all, so opting out does not leave a dangling preference behind.
-
-There is deliberately no D-Bus activation file: the shell owns the backend name from session start, so screen sharing cannot start the shell. If the shell is not running, screen sharing is simply unavailable.
+The shell must be running for screen sharing to work; sharing never starts it.
 
 ## Input Capture
 
-The `[input_capture]` section configures the shell's **xdg-desktop-portal InputCapture backend** — what lets a keyboard-and-mouse sharing application such as [DeskFlow](https://github.com/deskflow/deskflow) or Input Leap use this computer as the one whose keyboard and mouse are shared. The application asks once; the shell shows a prompt naming it, and nothing is captured unless you press **Allow**. Escape, a click outside, or Deny refuses.
+`[input_capture]` configures the shell's xdg-desktop-portal InputCapture backend. It lets keyboard-and-mouse sharing apps such as [DeskFlow](https://github.com/deskflow/deskflow) or Input Leap share this computer's keyboard and mouse with other computers. The first time an application asks, the shell names it and waits for **Allow**; Deny, Escape or a click outside refuses.
 
-Once allowed, the application draws its *barriers* — the screen edges its other computers sit beyond. Push the pointer through one and the cursor stays put, hidden, while every key, click, scroll and movement goes to the application (over a libei socket) instead of to anything on this computer, until the application hands them back.
+Once allowed, the application sets barriers on your screen edges. Push the pointer through one and your input goes to the application until it hands it back.
 
-**Super+Shift+Escape always takes the keyboard and mouse back**, and stops that application capturing again until it asks anew — so an application that hangs or misbehaves while holding your input cannot keep it.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Whether to serve InputCapture at all. Set false to leave it to another backend, or to nobody. |
+**Super+Shift+Escape always takes your keyboard and mouse back** and stops that application capturing until it asks again.
 
 ```toml
 [input_capture]
 enabled = true
 ```
 
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Serve InputCapture (restart to apply) |
+
 ### Requirements
 
-- **libeis**, libei's server library — `libeis1` on Debian and on Ubuntu 24.04 and later. The snap carries its own. Without it the feature disables itself and logs why.
-- **A compositor with `wlr-layer-shell`, `relative-pointer` and `pointer-constraints`.** sway and the other wlroots compositors have all three; on any compositor missing one, the shell logs which.
-- **The portal files**, the same ones as screen sharing: the shell's `.portal` lists both interfaces, and the `-portals.conf` routes both to it. An existing `*-portals.conf` of your own needs one more line under `[preferred]`:
+- **libeis** (`libeis1` on Debian and Ubuntu 24.04+; the snap includes it).
+- A compositor with `wlr-layer-shell`, `relative-pointer` and `pointer-constraints`. The shell logs any that are missing.
+- The same portal files as [Screen Sharing](#screen-sharing). If you keep your own `*-portals.conf`, add under `[preferred]`:
 
   ```ini
   org.freedesktop.impl.portal.InputCapture=moonswing
   ```
 
-  The snap adds that line itself to a conf *it* wrote before the shell served InputCapture; one you wrote is left for you to change. Turning `[screenshare] enabled` off stops the snap registering the portal files at all, including for input capture.
+  The snap adds this line to confs it wrote itself, not to yours. `[screenshare] enabled = false` also stops the snap registering input capture.
 
 ### How it behaves
 
-- **The last pixel of an armed edge belongs to the shell.** The shell can only see the pointer reach an edge through a surface of its own, so while an application has barriers armed, a one-pixel strip along that edge takes clicks that would have landed on whatever was under it. Nothing is there while no application is armed.
-- **A barrier must be on the outside of your screens.** The edge where two monitors meet is refused, so moving between your own monitors is never captured.
-- **Plugging or unplugging a monitor ends a capture** and asks the application to draw its barriers again.
-- **A lock screen ends a capture**, so a password is never typed into the other computer.
+- While barriers are armed, a one-pixel strip along each armed edge takes clicks meant for what's under it.
+- Barriers must be on outer screen edges; edges between two of your monitors are refused.
+- Plugging or unplugging a monitor ends a capture, and the application must set its barriers again.
+- Locking the screen ends a capture.
 
 ## Full Example
 
@@ -2488,28 +1828,28 @@ theme = "dracula"
 
 [panels.top]
 height = 32
-padding_horizontal = 40
+padding_horizontal = 8
 anchor = "top"
 layer = "top"
 
 [panels.top.layout]
-left   = ["workspaces", "dock"]
-center = ["media_player"]
-right  = ["sound_control", "battery", "network", "weather", "clock"]
+left   = ["workspaces"]
+center = ["clock"]
+right  = ["screenshot", "sound_control", "brightness", "system_tray", "battery", "network", "weather", "system"]
 
 [panels.bottom]
 height = 32
-padding_horizontal = 20
+padding_horizontal = 0
 anchor = "bottom"
 layer = "top"
 
 [panels.bottom.layout]
-left   = []
-center = []
-right  = ["clock", "launcher"]
+left   = ["clipboard"]
+center = ["dock"]
+right  = ["media_player", "notifications", "launcher"]
 
 [modules.weather]
-unit = "fahrenheit"
+unit = "celsius"
 refresh_minutes = 30
 
 [modules.battery]
@@ -2517,6 +1857,8 @@ poll_seconds = 30
 
 [modules.clock]
 show_date = true
+show_seconds = false
+hour_format = "12"
 timer_sound = "ding"
 timer_volume = 0.7
 
@@ -2524,32 +1866,36 @@ timer_volume = 0.7
 max_text_width = 200.0
 
 [modules.dock]
-apps = ["firefox", "org.gnome.Nautilus", "kitty"]
+apps = ["firefox", "org.gnome.Nautilus", "org.gnome.Ptyxis"]
 icon_size = 24
 
 [shortcuts]
 open_settings = "super+s"
 open_launcher = "super+d"
-open_notifications = "super+n"
 screenshot_area = "print"
 record_screen = "super+print"
-power_button = "poweroff"
+open_emoji = ""                  # disabled
 
 [power]
 key_action = "menu"
 inhibit_logind = true
 
+[polkit]
+enabled = true
+
 [screenshare]
 enabled = true
 preview_fps = 10
 max_fps = 0
+cursor = "app"
 
 [background]
 fit = "fill"
 interval_minutes = 15
+transition = "fade"
 
 [[background.entries]]
-path = "/home/user/wallpapers/morning.jpg"
+theme = true                     # the active theme's wallpaper
 shown = true
 
 [[background.entries]]
@@ -2566,4 +1912,7 @@ kind = "app"
 target = "/usr/share/applications/firefox.desktop"
 column = 0
 row = 0
+
+[lock]
+show_username = true
 ```

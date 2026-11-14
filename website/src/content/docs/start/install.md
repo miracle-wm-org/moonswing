@@ -6,7 +6,7 @@ sidebar:
 ---
 
 Moonswing ships as a classic snap, rebuilt nightly from `main`. It is the only supported
-packaging; otherwise [build from source](/start/build/).
+packaging; otherwise [build from source](../build/).
 
 You need:
 
@@ -44,7 +44,7 @@ moonswing
 
 The first start writes `~/.config/moonswing/config.toml`. Change settings from **Settings** on
 the bar, where they apply live; a hand edit to the file applies on the next start. See the
-[configuration reference](/configuration/).
+[configuration reference](../../configuration/).
 
 ## Without miracle-wm
 

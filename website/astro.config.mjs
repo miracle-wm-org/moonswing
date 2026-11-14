@@ -2,13 +2,12 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-import { configurationSidebar } from './scripts/pages.mjs';
+import { BASE, configurationSidebar } from './scripts/pages.mjs';
 
 // GitHub Pages serves a project site under /<repo>/. Publishing to a custom
-// domain instead means setting `site` to it and dropping `base` — those two
-// lines are the whole difference.
+// domain instead means setting `site` to it and `BASE` (scripts/pages.mjs) to ''.
 const site = 'https://miracle-wm-org.github.io';
-const base = '/moonswing';
+const base = BASE;
 
 const repo = 'https://github.com/miracle-wm-org/moonswing';
 
