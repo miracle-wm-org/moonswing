@@ -334,7 +334,8 @@ class _ToggleTile extends StatelessWidget {
     required this.onToggle,
     required this.onMore,
     this.error = false,
-  });
+    bool? dimmed,
+  }) : dimmed = dimmed ?? !enabled;
 
   final ShellGlyph glyph;
   final String title;
@@ -343,6 +344,10 @@ class _ToggleTile extends StatelessWidget {
   final bool busy;
   final bool enabled;
   final bool error;
+
+  /// Whether the glyph and title are drawn muted; by default, whenever the
+  /// switch is [enabled] no more.
+  final bool dimmed;
   final VoidCallback onToggle;
   final VoidCallback onMore;
 
@@ -385,7 +390,7 @@ class _ToggleTile extends StatelessWidget {
                               : ShellIcon(
                                   glyph,
                                   size: ShellFontSizes.label,
-                                  color: enabled ? fg : theme.muted,
+                                  color: dimmed ? theme.muted : fg,
                                 ),
                         ),
                         const SizedBox(width: 10),
@@ -399,7 +404,7 @@ class _ToggleTile extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: enabled ? fg : theme.muted,
+                                  color: dimmed ? theme.muted : fg,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -442,6 +447,11 @@ class _ToggleTile extends StatelessWidget {
 }
 
 /// What the Wi-Fi tile's second line says.
+///
+/// While the connection is wired the tile is the Ethernet tile instead (see
+/// [networkTileIsEthernet]), and this line says so before it says what the
+/// Wi-Fi radio is doing — the switch is still the radio's — because "Not
+/// connected" over a working cable reads as being offline.
 @visibleForTesting
 String wifiTileSubtitle({
   required WifiStatus status,
@@ -449,6 +459,16 @@ String wifiTileSubtitle({
   required bool toggling,
   required NetworkInfo connection,
 }) {
+  if (connection.type == NetworkType.ethernet) {
+    if (status != WifiStatus.ready || !radio.hasDevice) return 'Connected';
+    if (toggling) {
+      return radio.enabled ? 'Turning Wi-Fi off…' : 'Turning Wi-Fi on…';
+    }
+    if (!radio.hardwareEnabled || !radio.enabled) {
+      return 'Connected · Wi-Fi off';
+    }
+    return 'Connected · Wi-Fi on';
+  }
   if (status == WifiStatus.unavailable) return 'Unavailable';
   if (status != WifiStatus.ready) return '…';
   if (!radio.hasDevice) return 'No Wi-Fi device';
@@ -458,6 +478,12 @@ String wifiTileSubtitle({
   if (connection.type == NetworkType.wifi) return connection.name;
   return 'Not connected';
 }
+
+/// Whether the network tile shows the wired connection rather than Wi-Fi:
+/// whenever NetworkManager's primary connection is Ethernet.
+@visibleForTesting
+bool networkTileIsEthernet(NetworkInfo connection) =>
+    connection.type == NetworkType.ethernet;
 
 class _WifiTile extends StatelessWidget {
   const _WifiTile({
@@ -477,9 +503,11 @@ class _WifiTile extends StatelessWidget {
       builder: (context, _) {
         final radio = store.radio;
         final ready = store.status == WifiStatus.ready;
+        final wired = networkTileIsEthernet(network.info);
+        final canToggle = ready && radio.hasDevice && radio.hardwareEnabled;
         return _ToggleTile(
-          glyph: ShellGlyph.wifi,
-          title: 'Wi-Fi',
+          glyph: wired ? ShellGlyph.ethernet : ShellGlyph.wifi,
+          title: wired ? 'Ethernet' : 'Wi-Fi',
           subtitle: store.error.isNotEmpty && ready
               ? store.error
               : wifiTileSubtitle(
@@ -491,7 +519,10 @@ class _WifiTile extends StatelessWidget {
           error: store.error.isNotEmpty,
           on: ready && radio.enabled && radio.hardwareEnabled,
           busy: store.toggling,
-          enabled: ready && radio.hasDevice && radio.hardwareEnabled,
+          enabled: canToggle,
+          // A working cable is never drawn as a dead tile, even on a machine
+          // with no Wi-Fi to switch.
+          dimmed: !canToggle && !wired,
           onToggle: () => store.setEnabled(!radio.enabled),
           onMore: onMore,
         );
