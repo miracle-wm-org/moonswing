@@ -213,9 +213,10 @@ class GithubAccountStore extends ChangeNotifier {
   }
 
   Future<void> _expire(String message) async {
-    await _forget();
+    _dropSession();
     _error = message;
     _publish();
+    await _tokens.clear();
   }
 
   // --- the sign-in ---------------------------------------------------------
@@ -370,18 +371,21 @@ class GithubAccountStore extends ChangeNotifier {
   /// what [openApplications] is for — so settings says so rather than implying
   /// the authorisation is gone.
   Future<void> signOut() async {
-    await _forget();
+    _dropSession();
     _error = '';
     _publish();
+    await _tokens.clear();
   }
 
-  Future<void> _forget() async {
+  /// Signs the session out in memory. Callers publish before deleting the token
+  /// file, so no consumer sees a stage of `signedOut` behind a signed-in card
+  /// while the disk catches up.
+  void _dropSession() {
     _signInGeneration++;
     _token = null;
     _login = '';
     _deviceCode = null;
     _stage = GithubAuthStage.signedOut;
-    await _tokens.clear();
   }
 
   /// Clears a shown failure. The settings row's dismiss.
