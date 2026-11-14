@@ -42,8 +42,9 @@ From inside your compositor session:
 moonswing
 ```
 
-The first start writes `~/.config/moonswing/config.toml` and the shipped themes. Edit them, or
-open **Settings** from the bar — changes apply live. See the [configuration reference](/configuration/).
+The first start writes `~/.config/moonswing/config.toml`. Change settings from **Settings** on
+the bar, where they apply live; a hand edit to the file applies on the next start. See the
+[configuration reference](/configuration/).
 
 ## Without miracle-wm
 
