@@ -100,6 +100,7 @@ import 'package:moonswing/panel_layout_edit.dart' show reorderPanelSlot;
 import 'package:moonswing/panel_reach.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/panel_section.dart';
+import 'package:moonswing/native/glib_source.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/input_capture/consent_controller.dart';
@@ -2391,9 +2392,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     _destroyAfterFrame(removed);
     if (removedLocks.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        for (final controller in removedLocks) {
-          controller.destroy();
-        }
+        // From the main loop, never from inside a GTK draw — see
+        // [runOnGlibIdle].
+        runOnGlibIdle(() {
+          for (final controller in removedLocks) {
+            controller.destroy();
+          }
+        });
       });
     }
   }
