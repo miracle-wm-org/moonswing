@@ -156,17 +156,14 @@ class _KeybindCheatsheetState extends State<KeybindCheatsheet> {
       child: Focus(
         focusNode: _sheetFocus,
         onKeyEvent: _onKey,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: kCheatsheetMaxWidth),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: ListenableBuilder(
-                listenable: _store,
-                builder: (context, _) => _buildSheet(theme),
-              ),
-            ),
+        // The tab's full width, not the sheet's: the scroll view spans the
+        // page so its scrollbar sits at the page's right edge, and each piece
+        // inside it is held to the sheet's column by `_SheetColumn`.
+        child: Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: ListenableBuilder(
+            listenable: _store,
+            builder: (context, _) => _buildSheet(theme),
           ),
         ),
       ),
@@ -178,9 +175,11 @@ class _KeybindCheatsheetState extends State<KeybindCheatsheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _CheatsheetHeader(
-          actionKey: result == null ? null : primaryModifierLabel(result),
-          refreshing: _store.refreshing && result != null,
+        _SheetColumn(
+          child: _CheatsheetHeader(
+            actionKey: result == null ? null : primaryModifierLabel(result),
+            refreshing: _store.refreshing && result != null,
+          ),
         ),
         const SizedBox(height: 14),
         // A failure over a list the store already has: the last good sheet
@@ -188,10 +187,12 @@ class _KeybindCheatsheetState extends State<KeybindCheatsheet> {
         if (_store.error.isNotEmpty &&
             result != null &&
             _store.status != KeybindStatus.unsupported) ...[
-          _CheatsheetError(
-            message: _store.error,
-            busy: _store.refreshing,
-            onRetry: _store.retry,
+          _SheetColumn(
+            child: _CheatsheetError(
+              message: _store.error,
+              busy: _store.refreshing,
+              onRetry: _store.retry,
+            ),
           ),
           const SizedBox(height: 14),
         ],
@@ -211,21 +212,23 @@ class _KeybindCheatsheetState extends State<KeybindCheatsheet> {
               // The last row clear of the overview's bottom edge, inside the
               // scroll view so the rows still run to it as they scroll.
               padding: const EdgeInsets.only(bottom: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListenableBuilder(
-                    listenable: _shellStore,
-                    builder: (context, _) => _ShellSectionBlock(
-                      store: _shellStore,
-                      compositor: result,
-                      capturing: _capturing,
-                      onCaptureEnd: _restoreFocus,
+              child: _SheetColumn(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListenableBuilder(
+                      listenable: _shellStore,
+                      builder: (context, _) => _ShellSectionBlock(
+                        store: _shellStore,
+                        compositor: result,
+                        capturing: _capturing,
+                        onCaptureEnd: _restoreFocus,
+                      ),
                     ),
-                  ),
-                  _buildCompositorBody(theme, result),
-                ],
+                    _buildCompositorBody(theme, result),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1165,4 +1168,25 @@ class _CheatsheetError extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The sheet's centred column: at most [kCheatsheetMaxWidth] wide, inset by
+/// the sheet's gutter. Applied to each piece rather than around the tab, so the
+/// scroll view can span the tab and keep its scrollbar at the page's edge.
+class _SheetColumn extends StatelessWidget {
+  const _SheetColumn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: kCheatsheetMaxWidth),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: child,
+      ),
+    ),
+  );
 }
