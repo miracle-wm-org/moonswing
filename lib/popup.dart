@@ -26,6 +26,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:moonswing/desktop_cursor.dart';
+import 'package:moonswing/native/glib_source.dart';
 import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_coordinator.dart';
@@ -742,10 +743,20 @@ void destroyWindowWhenDetached(
   final FlutterView view = controller.rootView;
   WindowTeardown(
     viewAttached: () => viewIsAttached(view),
-    hide: hide ? () => _hideWindowOf(controller) : null,
+    // Both native halves go through the GLib main loop rather than running
+    // where they are asked for: this Dart may be running *inside* GTK's draw
+    // handler for this very window — the embedder's wait for a frame of a new
+    // size runs engine tasks, and so Dart, for up to 100ms, which is enough
+    // frames for the whole teardown — and GTK goes on using the window's
+    // GdkWindow and renderer after that wait returns. Destroying it there was a
+    // SIGSEGV in `gdk_window_get_width` (or a hang on the freed frame mutex).
+    // See [runOnGlibIdle].
+    hide: hide ? () => runOnGlibIdle(() => _hideWindowOf(controller)) : null,
     // destroy() is idempotent in both controller implementations, so a
     // compositor-initiated destroy arriving mid-wait costs nothing.
-    destroy: controller.destroy,
+    destroy: () => runOnGlibIdle(() {
+      if (!controller.isDestroyed) controller.destroy();
+    }),
   ).start();
 }
 

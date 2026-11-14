@@ -79,3 +79,105 @@ class GlibFdWatch {
     _callback = null;
   }
 }
+
+// guint g_idle_add_full(gint priority, GSourceFunc function, gpointer data,
+//     GDestroyNotify notify);
+typedef _GIdleAddFullC = ffi.Uint32 Function(
+  ffi.Int32 priority,
+  ffi.Pointer<ffi.Void> function,
+  ffi.Pointer<ffi.Void> data,
+  ffi.Pointer<ffi.Void> notify,
+);
+typedef _GIdleAddFullDart = int Function(
+  int priority,
+  ffi.Pointer<ffi.Void> function,
+  ffi.Pointer<ffi.Void> data,
+  ffi.Pointer<ffi.Void> notify,
+);
+final _gIdleAddFull = _process
+    .lookupFunction<_GIdleAddFullC, _GIdleAddFullDart>('g_idle_add_full');
+
+typedef _SourceFuncC = ffi.Int32 Function(ffi.Pointer<ffi.Void> userData);
+
+/// `G_PRIORITY_DEFAULT`: ahead of GDK's redraw (`GDK_PRIORITY_REDRAW`, 120),
+/// so a continuously animating surface cannot starve the queue.
+const int _gPriorityDefault = 0;
+
+/// Runs [callback] from its own GLib main-loop dispatch, never from inside
+/// whatever is running now.
+///
+/// What this buys is *not* being inside a GTK signal handler. The embedder's
+/// draw handler (`wait_for_frame` in `fl_view_renderer_*.cc`) drops its frame
+/// mutex and runs engine tasks — Dart, since the UI and platform threads are
+/// one — for up to 100ms while it waits for a frame of the window's new size,
+/// then goes on using the `GdkWindow` and renderer it started with. Anything
+/// that destroys or unmaps that window from Dart in the meantime leaves the
+/// draw holding freed memory: a SIGSEGV in `gdk_window_get_width`, or a hang
+/// locking a freed mutex. That wait only runs engine tasks, never GLib sources,
+/// so an idle source is guaranteed to land after the draw has returned.
+///
+/// With no GLib in the process (`flutter_tester`) [callback] runs at once.
+void runOnGlibIdle(void Function() callback) {
+  _GlibIdleQueue.instance.add(callback);
+}
+
+class _GlibIdleQueue {
+  _GlibIdleQueue._();
+
+  static final _GlibIdleQueue instance = _GlibIdleQueue._();
+
+  final List<void Function()> _pending = [];
+  ffi.NativeCallable<_SourceFuncC>? _callback;
+  _GIdleAddFullDart? _idleAdd;
+  bool _scheduled = false;
+  bool? _available;
+
+  void add(void Function() callback) {
+    if (!_ensureCallable()) {
+      callback();
+      return;
+    }
+    _pending.add(callback);
+    if (_scheduled) return;
+    _scheduled = true;
+    _idleAdd!(
+      _gPriorityDefault,
+      _callback!.nativeFunction.cast(),
+      ffi.nullptr,
+      ffi.nullptr,
+    );
+  }
+
+  bool _ensureCallable() {
+    if (_available != null) return _available!;
+    try {
+      // Resolved first: with no GLib this throws before a callable exists to
+      // keep the isolate alive.
+      _idleAdd = _gIdleAddFull;
+      _callback = ffi.NativeCallable<_SourceFuncC>.isolateLocal(
+        _drain,
+        exceptionalReturn: 0,
+      );
+      _available = true;
+    } catch (_) {
+      _available = false;
+    }
+    return _available!;
+  }
+
+  int _drain(ffi.Pointer<ffi.Void> _) {
+    _scheduled = false;
+    final batch = List.of(_pending);
+    _pending.clear();
+    for (final callback in batch) {
+      try {
+        callback();
+      } catch (error, stack) {
+        // One failing callback must not strand the rest of the batch.
+        // ignore: avoid_print
+        print('runOnGlibIdle: $error\n$stack');
+      }
+    }
+    return 0; // G_SOURCE_REMOVE — rescheduled by the next add.
+  }
+}
