@@ -142,6 +142,20 @@ make uninstall
 sudo make uninstall-pam   # if you installed the PAM service file
 ```
 
+## AI agents (MCP)
+
+Moonswing ships `moonswing-mcp` (`moonswing.mcp` in the snap), a [Model Context
+Protocol](https://modelcontextprotocol.io) server. Point Claude, an OpenAI model or a
+local open-source model at it and ask it to arrange your windows through miracle-wm,
+switch themes, add todo cards, start timers or look at your screen:
+
+```sh
+claude mcp add --scope user moonswing -- moonswing-mcp
+```
+
+Setup for Claude Code, Codex, the OpenAI Agents SDK, LM Studio, Ollama, Open WebUI and
+others is on the [AI agents page](https://miracle-wm-org.github.io/moonswing/start/agents/).
+
 ## Running in development
 
 ```sh

@@ -35,6 +35,11 @@ gdbus call --session --dest org.freedesktop.portal.Desktop \
   org.freedesktop.portal.ScreenCast AvailableSourceTypes   # 0 = frontend cached no backend
 
 dart run tool/pulse_spike.dart      # PulseAudio driver; MOONSWING_PULSE_LOG=1 for logging
+
+# The MCP server (`make build-mcp`). `dart build cli`, not `compile exe`: sqlite3's
+# build hook makes `compile exe` refuse this package.
+dart build cli -t bin/moonswing_mcp.dart -o build/mcp
+build/mcp/bundle/bin/moonswing_mcp --list-tools
 ```
 
 ```sh
@@ -165,6 +170,13 @@ A `Module` is a panel strip sized by its content: a `configKey` matching `[modul
 
 **`Module.configChanges` keeps `[modules.*]` options live.** Config is pushed imperatively — `loadAll` mutates each module's config in place — so nothing about a module widget's inputs tells Flutter anything moved. `loadConfig` compares a stringified signature of the raw sub-map and `loadAll` fires the notifier once per sweep; a panel listens per module, so a `[modules.clock]` edit rebuilds the clock and nothing else. The guard also stops side-effecting `fromMap`s re-running per keystroke.
 
+### Control and MCP (`lib/control/`, `lib/mcp/`, `bin/moonswing_mcp.dart`)
+
+`org.moonswing.Shell1` is the shell's one interface *for* other programs, and `moonswing-mcp` — the MCP server an agent is pointed at — is its first client. Two halves, two processes:
+
+- **The interface lands on existing paths, never a second implementation.** `LiveShellControl` calls the stores and controllers a click already reaches; `Activate` goes through `shellActionCallback`, which `inputShortcutsFor` registers its shortcuts with too, so an agent's request and a key press cannot drift. `ShellControlServer` is marshalling only, Flutter-free over the `ShellControl` interface; `test/shell_control_test.dart` drives the MCP tools through an in-process `DBusServer` into it, which is what catches a signature disagreeing between the ends. Names both ends spell (bus name, action ids, tabs, columns) are `control_api.dart`, pinned against `OverviewTab`/`TodoColumn`. A new method is a row in the server's table, a member of `ShellControl`, and a tool. `[control] enabled` gates the name at start-up (`ShellService.control`); `screenshots` is read per request.
+- **The MCP server is Flutter-free** (`test/mcp_server_test.dart` walks its imports) and built with `dart build cli`. `mcp_protocol.dart` is the JSON-RPC dispatcher, `mcp_transport.dart` stdio and the POST half of Streamable HTTP (loopback unless a token is given, foreign `Origin` refused). The `wm_*` tools are command strings `miraclemsg` would accept, scoped by `[con_id=N]`, over `CompositorClient`, which settles miracle-or-not the way `MiracleManager` does (`detectMiracleSession` lives in `lib/miracle_session.dart` for that reason) but, unlike the shell, still drives an i3-compatible socket. `exec` is refused unless `--allow-exec`. A tool failure is `McpToolException` → a result with `isError`, which the model reads; only a malformed call is a JSON-RPC error. User docs are `website/src/content/docs/start/agents.md`.
+
 ### The compositor's configuration (`lib/miracle_config/`, `lib/overlay/settings/miracle/`)
 
 Settings › Window Manager edits `~/.config/miracle-wm/config.yaml` through
@@ -271,7 +283,7 @@ Panels, overlays and the desktop surface have **no repaint boundary of their own
 
 ### Services and D-Bus (`lib/dbus_service_object.dart`, `lib/dbus_clients.dart`)
 
-Four exported surfaces: `org.freedesktop.Notifications`, `org.kde.StatusNotifierWatcher` + host (with a `com.canonical.dbusmenu` client for tray menus), `org.freedesktop.PolicyKit1.AuthenticationAgent`, and the portal backend on its own name. **ScreenCast and InputCapture share that name and one object**: a `.portal` names one bus name and the frontend calls every interface behind it at `/org/freedesktop/portal/desktop`, so `PortalBus` (`lib/portal_bus.dart`) owns the name, each backend `serve`s its interface table onto the one object and `withdraw`s it, and the last holder out gives the name up. A backend served that way is never registered itself, so it emits through `PortalBus.emitSignal`. Every exported object extends `DBusServiceObject`: **one interface table** drives `handleMethodCall`'s guard and dispatch, `getProperty`, `getAllProperties` and `introspect` — objects used to list their members two or three times each, which is how one lost its interface guard and another's `GetAll` returned nothing. One-shot queries use the process-wide clients in `dbus_clients.dart` (BlueZ is the documented exception: it scopes discovery to the requesting connection); long-lived services own their connections. That file is Flutter-free, because the portal must compile into `tool/screencast_spike.dart`.
+Five exported surfaces: `org.moonswing.Shell` (`lib/control/`, see above), `org.freedesktop.Notifications`, `org.kde.StatusNotifierWatcher` + host (with a `com.canonical.dbusmenu` client for tray menus), `org.freedesktop.PolicyKit1.AuthenticationAgent`, and the portal backend on its own name. **ScreenCast and InputCapture share that name and one object**: a `.portal` names one bus name and the frontend calls every interface behind it at `/org/freedesktop/portal/desktop`, so `PortalBus` (`lib/portal_bus.dart`) owns the name, each backend `serve`s its interface table onto the one object and `withdraw`s it, and the last holder out gives the name up. A backend served that way is never registered itself, so it emits through `PortalBus.emitSignal`. Every exported object extends `DBusServiceObject`: **one interface table** drives `handleMethodCall`'s guard and dispatch, `getProperty`, `getAllProperties` and `introspect` — objects used to list their members two or three times each, which is how one lost its interface guard and another's `GetAll` returned nothing. One-shot queries use the process-wide clients in `dbus_clients.dart` (BlueZ is the documented exception: it scopes discovery to the requesting connection); long-lived services own their connections. That file is Flutter-free, because the portal must compile into `tool/screencast_spike.dart`.
 
 Losing a name to another daemon is a **graceful decline** for `ShellServices` but a **visible failure** for the feature, which carries its own status: notifications going to a daemon the shell cannot see must not render as a quiet day. Registrations a peer restart silently drops (polkitd) are re-established from `nameOwnerChanged`.
 
@@ -339,6 +351,8 @@ All pure `dart:ffi`; **there is no C in the repo** beyond the runner (`linux/run
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
 | `power_profile/` | Settings › Power: the power mode over power-profiles-daemon's D-Bus API (either of its two names; tuned-ppd answers it too), TuneD's own profile catalogue where TuneD runs, and the sysfs knobs beneath both — ACPI platform profile, cpufreq governor, EPP, turbo, a `scaling_max_freq` cap as a percentage — read directly and written as root through **one** `pkexec /bin/sh` per Apply (`power_tuning.dart`: a fixed script, an allow-list of paths and values, pairs as arguments). Edits are held until Apply because every write is an admin prompt; governor goes before EPP because intel_pstate refuses a non-`performance` EPP under the `performance` governor. The mode is read back after every write, never set optimistically, and the knobs are re-read on every mode change since the daemon rewrites them |
 | `default_apps/` | Settings › Default Apps over GIO: the category table and claim rule (pure), the `g_app_info_*_default_for_type` bindings behind an interface tests fake, and the leased store. No copy of `mimeapps.list` of its own — every write is read back, and one a `$desktop-mimeapps.list` outranks is a banner naming that file |
+| `control/` | `org.moonswing.Shell1`: the API both ends spell, the Flutter-free server object over `ShellControl`, the live implementation against the stores, `[control]` |
+| `mcp/` | `moonswing-mcp` (`bin/moonswing_mcp.dart`), Flutter-free: the MCP dispatcher and transports, the compositor IPC client, the session-bus client (the shell, notifications, MPRIS) and the tool table |
 | `keybinds/` | The cheat sheet behind the bar's keyboard icon: miracle's own bindings over `GET_KEYBINDS` and the shell's own `[shortcuts]`, the pure models that turn either into key caps, their two stores, the key-press capture and the sheet, the overview's Shortcuts tab |
 
 Feature-level rationale that used to live in this file is in the git history of `CLAUDE.md` and in the doc comments of the files themselves.

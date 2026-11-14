@@ -77,8 +77,8 @@ export const PAGES = [
     title: 'Overlays and system integration',
     description:
       'The emoji picker, calendar, notifications, on-screen indicator, ' +
-      'keyboard layouts, power button, authentication prompts, screen ' +
-      'sharing and input capture.',
+      'keyboard layouts, power button, authentication prompts, agent ' +
+      'control, screen sharing and input capture.',
     sections: [
       'Emoji Picker',
       'Calendar',
@@ -87,6 +87,7 @@ export const PAGES = [
       'Keyboard',
       'Power Button',
       'Authentication Prompts',
+      'Agent Control',
       'Screen Sharing',
       'Input Capture',
     ],

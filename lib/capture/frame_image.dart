@@ -145,8 +145,13 @@ void blitIntoCanvas(
 /// `ImageDescriptor.raw` rather than `decodeImageFromPixels`, the decode path
 /// `screencast/preview.dart` documents: the bytes are already in a format
 /// `dart:ui` names, so nothing here touches an individual pixel.
-Future<Uint8List?> encodePng(FrameBytes bytes) async {
+///
+/// [maxWidth] scales a wider frame down to it, keeping the aspect: what a
+/// picture handed to a language model over `org.moonswing.Shell` asks for,
+/// since a 4K PNG is megabytes of context for detail no model reads.
+Future<Uint8List?> encodePng(FrameBytes bytes, {int? maxWidth}) async {
   if (bytes.width <= 0 || bytes.height <= 0) return null;
+  final shrink = maxWidth != null && maxWidth > 0 && bytes.width > maxWidth;
   ui.Image? image;
   try {
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes.bytes);
@@ -157,7 +162,12 @@ Future<Uint8List?> encodePng(FrameBytes bytes) async {
       rowBytes: bytes.width * 4,
       pixelFormat: bytes.order.uiFormat,
     );
-    final codec = await descriptor.instantiateCodec();
+    final codec = await descriptor.instantiateCodec(
+      targetWidth: shrink ? maxWidth : null,
+      targetHeight: shrink
+          ? (bytes.height * maxWidth / bytes.width).round().clamp(1, bytes.height)
+          : null,
+    );
     final frame = await codec.getNextFrame();
     codec.dispose();
     descriptor.dispose();

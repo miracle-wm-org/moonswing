@@ -30,6 +30,7 @@ import 'package:moonswing/overlay/file_picker.dart';
 import 'package:moonswing/overlay/file_picker_controller.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/control/live_shell_control.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/monitor_watcher.dart';
@@ -433,6 +434,18 @@ void _startShellServices({
   // until the compositor confirms the shell owns the key (see [PowerKeyService]),
   // and `key_action = "none"` claims nothing at all.
   services.run(ShellService.power, () => startPowerService(appConfig.power));
+
+  // Owns `org.moonswing.Shell`, the bus interface `moonswing-mcp` drives the
+  // shell through. Every method lands on the store or controller a click or a
+  // shortcut already reaches, so it costs nothing until something calls it.
+  if (appConfig.control.enabled) {
+    services.run(
+      ShellService.control,
+      () => startShellControlService(LiveShellControl(miracle: miracle)),
+    );
+  } else {
+    services.skip(ShellService.control);
+  }
 
   // The window switcher's list of open windows, and the recency order it
   // offers them in. Late in this function and below `runWidget` for the same
