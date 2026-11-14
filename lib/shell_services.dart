@@ -57,6 +57,10 @@ enum ShellService {
   /// The physical power button: logind's `handle-power-key` inhibitor, taken
   /// once the compositor confirms the shell owns the key.
   power,
+
+  /// `org.moonswing.Shell` on the session bus — what `moonswing-mcp` and any
+  /// other program drives the shell through (`lib/control/`).
+  control,
 }
 
 /// The one place that knows how far along the shell's start-up is.

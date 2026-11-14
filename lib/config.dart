@@ -16,6 +16,7 @@ import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/default_config.dart';
 import 'package:moonswing/desktop/desktop_config.dart';
 import 'package:moonswing/caldav/caldav_config.dart';
+import 'package:moonswing/control/control_config.dart';
 import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/module.dart';
@@ -26,6 +27,7 @@ import 'package:moonswing/screencast/cursor_policy.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/wallpaper_transition.dart';
 
+export 'package:moonswing/control/control_config.dart';
 export 'package:moonswing/default_config.dart';
 export 'package:moonswing/desktop/desktop_config.dart';
 export 'package:moonswing/keyboard/keyboard_config.dart';
@@ -825,6 +827,10 @@ class AppConfig {
   /// "no polkit config".
   final PolkitConfig polkit;
 
+  /// Whether other programs — `moonswing-mcp`, and so an AI agent — may drive
+  /// the shell over `org.moonswing.Shell`. Never null; absent is on.
+  final ControlConfig control;
+
   /// What the shell does with the Google account (Settings › Accounts). Never
   /// null; the account itself is not config, see `google_account_file.dart`.
   final GoogleConfig google;
@@ -847,6 +853,7 @@ class AppConfig {
     this.inputCapture = const InputCaptureConfig(),
     this.power = const PowerConfig(),
     this.polkit = const PolkitConfig(),
+    this.control = const ControlConfig(),
     this.google = const GoogleConfig(),
     this.caldav = const CalDavConfig(),
   });
@@ -939,6 +946,7 @@ class AppConfig {
           InputCaptureConfig.fromMap(map.tableOrNull('input_capture')),
       power: PowerConfig.fromMap(map.tableOrNull('power')),
       polkit: PolkitConfig.fromMap(map.tableOrNull('polkit')),
+      control: ControlConfig.fromMap(map.tableOrNull('control')),
       google: GoogleConfig.fromMap(map.tableOrNull('google')),
       caldav: CalDavConfig.fromMap(map.tableOrNull('caldav')),
     );
@@ -960,6 +968,7 @@ class AppConfig {
           other.inputCapture == inputCapture &&
           other.power == power &&
           other.polkit == polkit &&
+          other.control == control &&
           other.google == google &&
           other.caldav == caldav;
 
@@ -981,6 +990,7 @@ class AppConfig {
         inputCapture,
         power,
         polkit,
+        control,
         google,
         caldav,
       );

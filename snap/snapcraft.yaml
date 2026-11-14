@@ -52,6 +52,13 @@ apps:
       # the shell must go through it.
       LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu/blas:$SNAP/usr/lib/x86_64-linux-gnu/lapack:$SNAP/usr/lib/x86_64-linux-gnu/pulseaudio:$SNAP/lib:$LD_LIBRARY_PATH
 
+  # `moonswing.mcp`: what an MCP client is configured to launch. It talks to
+  # the shell over the session bus and to the compositor over its socket, so it
+  # needs none of the shell's staged libraries — and no LD_LIBRARY_PATH, which
+  # would only reach the host programs it never starts.
+  mcp:
+    command: mcp/bin/moonswing_mcp
+
 parts:
   moonswing:
     plugin: flutter
@@ -118,6 +125,12 @@ parts:
       git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout --detach "${FLUTTER_REV}"
       flutter config --enable-windowing
       craftctl default
+      # moonswing-mcp, the MCP server an AI agent drives the desktop through
+      # (the `mcp` app below, `moonswing.mcp` on the host). A Dart CLI bundle,
+      # not a Flutter one: no GTK, no engine, nothing staged above.
+      dart build cli -t bin/moonswing_mcp.dart -o "${CRAFT_PART_BUILD}/build/mcp"
+      mkdir -p "${CRAFT_PART_INSTALL}/mcp"
+      cp -r "${CRAFT_PART_BUILD}/build/mcp/bundle/." "${CRAFT_PART_INSTALL}/mcp/"
     build-packages:
       - libgtk-3-dev
       - libgtk-layer-shell-dev

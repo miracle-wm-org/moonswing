@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:moonswing/capture/capture_flow.dart';
 import 'package:moonswing/capture/selection_controller.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/control/control_api.dart';
 import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/input_trigger/input_trigger_protocol.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/launcher/launcher_controller.dart';
+import 'package:moonswing/lock/lock_controller.dart';
 import 'package:moonswing/notification_panel_controller.dart';
 import 'package:moonswing/power/power_controller.dart';
 import 'package:moonswing/power/power_menu_controller.dart';
@@ -57,6 +59,31 @@ class InputShortcut {
 /// decides whether the shell holds logind's inhibitor.
 const String kPowerButtonShortcut = 'moonswing.power-button';
 
+/// What [action] does — for every action a global shortcut also reaches, the
+/// very callback that shortcut is registered with below, so a request over
+/// `org.moonswing.Shell` (`lib/control/`) and a key press cannot drift apart.
+///
+/// The capture and scratchpad actions are started and left to run, for the
+/// reasons given where they are registered.
+VoidCallback shellActionCallback(ShellAction action) => switch (action) {
+      ShellAction.openSettings => InputTriggerStore.instance.triggerSettings,
+      ShellAction.openLauncher => LauncherController.instance.toggle,
+      ShellAction.openEmoji => EmojiPickerController.instance.toggle,
+      ShellAction.openNotifications =>
+        NotificationPanelController.instance.toggle,
+      ShellAction.openPowerMenu => PowerMenuController.instance.toggle,
+      ShellAction.screenshotArea => () => unawaited(
+            runCaptureFlow(CaptureKind.screenshot, SelectionMode.area),
+          ),
+      ShellAction.recordScreen => () =>
+          unawaited(runScreenRecordingShortcut()),
+      ShellAction.toggleScratchpad => () =>
+          unawaited(ScratchpadStore.instance.toggle()),
+      ShellAction.moveToScratchpad => () =>
+          unawaited(ScratchpadStore.instance.moveFocusedWindow()),
+      ShellAction.lock => LockController.instance.lock,
+    };
+
 /// Turns the user's `[shortcuts]` config into the list the manager registers.
 ///
 /// Disabled shortcuts (a null spec) are dropped, and two shortcuts resolving to
@@ -82,31 +109,31 @@ List<InputShortcut> inputShortcutsFor(
     (
       'moonswing.open-settings',
       config.openSettings,
-      InputTriggerStore.instance.triggerSettings,
+      shellActionCallback(ShellAction.openSettings),
       null,
     ),
     (
       'moonswing.open-launcher',
       config.openLauncher,
-      LauncherController.instance.toggle,
+      shellActionCallback(ShellAction.openLauncher),
       null,
     ),
     (
       'moonswing.open-emoji',
       config.openEmoji,
-      EmojiPickerController.instance.toggle,
+      shellActionCallback(ShellAction.openEmoji),
       null,
     ),
     (
       'moonswing.open-notifications',
       config.openNotifications,
-      NotificationPanelController.instance.toggle,
+      shellActionCallback(ShellAction.openNotifications),
       null,
     ),
     (
       'moonswing.open-power-menu',
       config.openPowerMenu,
-      PowerMenuController.instance.toggle,
+      shellActionCallback(ShellAction.openPowerMenu),
       null,
     ),
     // Both capture shortcuts are started and left to run: a selection surface
@@ -116,15 +143,13 @@ List<InputShortcut> inputShortcutsFor(
     (
       'moonswing.screenshot-area',
       config.screenshotArea,
-      () => unawaited(
-            runCaptureFlow(CaptureKind.screenshot, SelectionMode.area),
-          ),
+      shellActionCallback(ShellAction.screenshotArea),
       null,
     ),
     (
       'moonswing.record-screen',
       config.recordScreen,
-      () => unawaited(runScreenRecordingShortcut()),
+      shellActionCallback(ShellAction.recordScreen),
       null,
     ),
     // The two halves of Alt+Tab. Unlike every other shortcut here these are
@@ -151,13 +176,13 @@ List<InputShortcut> inputShortcutsFor(
     (
       'moonswing.toggle-scratchpad',
       config.toggleScratchpad,
-      () => unawaited(ScratchpadStore.instance.toggle()),
+      shellActionCallback(ShellAction.toggleScratchpad),
       null,
     ),
     (
       'moonswing.move-to-scratchpad',
       config.moveToScratchpad,
-      () => unawaited(ScratchpadStore.instance.moveFocusedWindow()),
+      shellActionCallback(ShellAction.moveToScratchpad),
       null,
     ),
     (

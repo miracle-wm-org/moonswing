@@ -1011,6 +1011,23 @@ If prompts do not appear:
 - The password check needs `polkit-agent-helper-1`, part of polkit (`polkitd` on Debian/Ubuntu, `polkit` on Fedora, Arch, openSUSE). The dialog says if it is missing.
 - A logind session is required: `echo $XDG_SESSION_ID` must print something.
 
+## Agent Control
+
+The `[control]` section lets other programs drive the shell over the session bus (`org.moonswing.Shell`). `moonswing-mcp`, the MCP server you point an AI agent at, uses it; [AI agents (MCP)](https://miracle-wm-org.github.io/moonswing/start/agents/) covers setting one up.
+
+```toml
+[control]
+enabled = true
+screenshots = true
+```
+
+| Key           | Type    | Default | Description                                                    |
+| ------------- | ------- | ------- | -------------------------------------------------------------- |
+| `enabled`     | boolean | `true`  | Answer `org.moonswing.Shell` on the session bus. Applies on the next start |
+| `screenshots` | boolean | `true`  | Let callers take a picture of a screen. Applies at once |
+
+With `enabled = false` the agent's shell tools (themes, launcher, todo board, timers, notifications, screenshots) stop working; its window-manager tools still work, since they talk to the compositor directly.
+
 ## Theme
 
 A theme is a file of its own under `~/.config/moonswing/themes/`. `config.toml` picks one by its filename without `.toml`:
@@ -1944,6 +1961,10 @@ inhibit_logind = true
 
 [polkit]
 enabled = true
+
+[control]
+enabled = true
+screenshots = true
 
 [screenshare]
 enabled = true

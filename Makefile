@@ -4,6 +4,7 @@ APPDIR  := $(PREFIX)/lib/moonswing
 DATADIR := $(PREFIX)/share/moonswing
 
 BUNDLE  := build/linux/x64/release/bundle
+MCPBUNDLE := build/mcp/bundle
 
 PAMDIR  ?= /etc/pam.d
 
@@ -15,7 +16,7 @@ XDG_CONFIG_HOME ?= $(HOME)/.config
 PORTALDIR    := $(XDG_DATA_HOME)/xdg-desktop-portal/portals
 PORTALCONFDIR := $(XDG_CONFIG_HOME)/xdg-desktop-portal
 
-.PHONY: all build install install-pam install-portal uninstall uninstall-pam \
+.PHONY: all build build-mcp install install-pam install-portal uninstall uninstall-pam \
 	uninstall-portal clean
 
 all: build
@@ -23,7 +24,13 @@ all: build
 build:
 	flutter build linux --release
 
-install: build install-portal
+# The MCP server an AI agent drives the desktop through (bin/moonswing_mcp.dart).
+# `dart build cli`, not `dart compile exe`: the package has a build hook
+# (sqlite3's), which `compile exe` refuses outright.
+build-mcp:
+	dart build cli -t bin/moonswing_mcp.dart -o build/mcp
+
+install: build build-mcp install-portal
 	install -d $(BINDIR) $(APPDIR) $(DATADIR)
 	install -m 755 $(BUNDLE)/moonswing $(APPDIR)/moonswing
 	cp -r $(BUNDLE)/lib/. $(APPDIR)/lib/
@@ -34,6 +41,11 @@ install: build install-portal
 	@printf '#!/bin/sh\nexec "$(APPDIR)/moonswing" "$$@"\n' \
 		> $(BINDIR)/moonswing
 	chmod 755 $(BINDIR)/moonswing
+	install -d $(APPDIR)/mcp
+	cp -r $(MCPBUNDLE)/. $(APPDIR)/mcp/
+	@printf '#!/bin/sh\nexec "$(APPDIR)/mcp/bin/moonswing_mcp" "$$@"\n' \
+		> $(BINDIR)/moonswing-mcp
+	chmod 755 $(BINDIR)/moonswing-mcp
 	@echo "Installed to $(PREFIX). Make sure $(BINDIR) is in your PATH."
 	@echo "For the lock screen, also run: sudo make install-pam"
 
@@ -64,7 +76,7 @@ install-portal:
 	@echo "Run 'systemctl --user restart xdg-desktop-portal' to pick this up."
 
 uninstall: uninstall-portal
-	rm -f $(BINDIR)/moonswing
+	rm -f $(BINDIR)/moonswing $(BINDIR)/moonswing-mcp
 	rm -rf $(APPDIR) $(DATADIR)
 
 uninstall-pam:
