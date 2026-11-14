@@ -566,6 +566,44 @@ void main() {
     expect(all.last.dim, isTrue);
   });
 
+  test('the network tile names a wired connection rather than no Wi-Fi', () {
+    const wired = NetworkInfo(
+      type: NetworkType.ethernet,
+      name: 'Ethernet',
+      signal: 100,
+      ip: '10.0.0.3',
+      prefix: 24,
+    );
+    const on = WifiRadio(hasDevice: true, enabled: true, hardwareEnabled: true);
+    const off = WifiRadio(
+      hasDevice: true,
+      enabled: false,
+      hardwareEnabled: true,
+    );
+    String sub(
+      NetworkInfo c, {
+      WifiRadio radio = on,
+      WifiStatus status = WifiStatus.ready,
+      bool toggling = false,
+    }) => wifiTileSubtitle(
+      status: status,
+      radio: radio,
+      toggling: toggling,
+      connection: c,
+    );
+
+    expect(networkTileIsEthernet(wired), isTrue);
+    expect(networkTileIsEthernet(NetworkInfo.none), isFalse);
+    expect(sub(wired), 'Connected · Wi-Fi on');
+    expect(sub(wired, radio: off), 'Connected · Wi-Fi off');
+    expect(sub(wired, toggling: true), 'Turning Wi-Fi off…');
+    expect(sub(wired, radio: WifiRadio.none), 'Connected');
+    expect(sub(wired, status: WifiStatus.unavailable), 'Connected');
+    // Off a cable, nothing moves.
+    expect(sub(NetworkInfo.none), 'Not connected');
+    expect(sub(NetworkInfo.none, radio: WifiRadio.none), 'No Wi-Fi device');
+  });
+
   // -------------------------------------------------------------------------
   // The panel
   // -------------------------------------------------------------------------
@@ -584,7 +622,7 @@ void main() {
       SettingsController settings,
       PowerMenuController powerMenu,
     })
-    make({bool backlight = false}) {
+    make({bool backlight = false, NetworkInfo? connection}) {
       if (backlight) writeDevice(sysfs, 'intel_backlight', 600, 1200);
       final audio = FakeAudioBackend();
       final wifi = FakeWifiBackend();
@@ -596,13 +634,15 @@ void main() {
         services: QuickSettingsServices(
           wifi: WifiStore.forTesting(wifi),
           network: NetworkStatusStore.forTesting(
-            query: () async => const NetworkInfo(
-              type: NetworkType.wifi,
-              name: 'Home',
-              signal: 70,
-              ip: '10.0.0.2',
-              prefix: 24,
-            ),
+            query: () async =>
+                connection ??
+                const NetworkInfo(
+                  type: NetworkType.wifi,
+                  name: 'Home',
+                  signal: 70,
+                  ip: '10.0.0.2',
+                  prefix: 24,
+                ),
           ),
           bluetooth: BluetoothStore.forTesting(bluetooth),
           power: fakePowerStore(profiles: power),
@@ -726,6 +766,34 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(f.power.setProfiles, ['performance']);
+      await unpump(tester);
+    });
+
+    testWidgets('on a cable the network tile is the Ethernet tile', (
+      tester,
+    ) async {
+      final f = make(
+        connection: const NetworkInfo(
+          type: NetworkType.ethernet,
+          name: 'Ethernet',
+          signal: 100,
+          ip: '10.0.0.3',
+          prefix: 24,
+        ),
+      );
+      await pump(tester, f.services);
+
+      expect(find.text('Ethernet'), findsOneWidget);
+      expect(find.text('Wi-Fi'), findsNothing);
+      expect(find.text('Not connected'), findsNothing);
+      expect(findGlyph(ShellGlyph.ethernet), findsWidgets);
+
+      // The switch is still the Wi-Fi radio's, and the line says which.
+      await tester.tap(find.text('Ethernet'));
+      await tester.pump();
+      await tester.pump();
+      expect(f.wifi.enabledCalls, [false]);
+      expect(find.text('Connected · Wi-Fi off'), findsOneWidget);
       await unpump(tester);
     });
 
