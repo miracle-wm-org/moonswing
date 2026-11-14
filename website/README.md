@@ -1,6 +1,6 @@
 # The Moonswing website
 
-The project's website and wiki: <https://miracle-wm-org.github.io/moonswing/>
+The project's website: <https://miracle-wm-org.github.io/moonswing/>
 
 Built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build),
 Astro's documentation theme. It is a static site — the build produces plain HTML with a
@@ -50,8 +50,9 @@ directory instead, with each `### ` heading of its section a page of its own nes
 so a new module's `### ` heading in `CONFIG.md` is a new page with nothing else to change.
 Links within `CONFIG.md` (`[…](#anchor)`) are rewritten to whichever page the anchor landed on.
 
-Everything else — the landing page, `start/`, and `wiki/` — is hand-written Markdown under
-`src/content/docs/`.
+Everything else — the landing page, `start/`, `privacy.md` and `terms.md` — is hand-written
+Markdown under `src/content/docs/`. Architecture notes for contributors live in `CLAUDE.md`
+at the repository root, not on the site.
 
 ## Deploying
 

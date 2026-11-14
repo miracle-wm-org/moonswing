@@ -38,7 +38,7 @@ dart run tool/pulse_spike.dart      # PulseAudio driver; MOONSWING_PULSE_LOG=1 f
 ```
 
 ```sh
-# The website and wiki. `dev` and `build` regenerate the pages taken from CONFIG.md first.
+# The website. `dev` and `build` regenerate the pages taken from CONFIG.md first.
 cd website && npm install && npm run dev   # http://localhost:4321/moonswing/
 npm run build && npm run preview
 ```
@@ -79,8 +79,10 @@ cannot quietly vanish from the site. Modules is `split`: each `### ` under `## M
 is its own page nested under it, and `](#anchor)` links are rewritten to the page they landed on. Edit
 `CONFIG.md`, never `src/content/docs/configuration/`.
 
-The rest — the landing page, `start/`, `wiki/` — is hand-written, and is where the feature-level
-rationale in this file is retold for someone who does not have the repository open.
+The rest — the landing page, `start/`, privacy and terms — is hand-written. **The site is for
+users, and terse**: what a thing is, how to set it up, its keys. Architecture and rationale
+belong in this file and in doc comments, never on the site (there is no wiki). The same goes for
+`CONFIG.md`: one or two sentences, an example, a key table, and only the notes a user needs.
 
 ## Architecture
 
