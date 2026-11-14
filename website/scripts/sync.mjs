@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-import { PAGES } from './pages.mjs';
+import { BASE, PAGES } from './pages.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const site = join(here, '..');
@@ -156,7 +156,7 @@ async function generateConfigPages() {
   const listing = [];
 
   for (const [index, page] of PAGES.entries()) {
-    const url = `/configuration/${page.slug}/`;
+    const url = `${BASE}/configuration/${page.slug}/`;
     const order = index + 1;
 
     if (page.split) {
@@ -230,7 +230,7 @@ async function generateConfigPages() {
   const [title, ...intro] = preamble;
   pages.unshift({
     path: 'index.md',
-    url: '/configuration/',
+    url: `${BASE}/configuration/`,
     title: 'Configuration',
     description:
       'Where the config file lives, how it degrades, and what every section holds.',

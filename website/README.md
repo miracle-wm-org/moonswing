@@ -1,6 +1,6 @@
 # The Moonswing website
 
-The project's website and wiki: <https://miracle-wm-org.github.io/moonswing/>
+The project's website: <https://miracle-wm-org.github.io/moonswing/>
 
 Built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build),
 Astro's documentation theme. It is a static site — the build produces plain HTML with a
@@ -50,8 +50,9 @@ directory instead, with each `### ` heading of its section a page of its own nes
 so a new module's `### ` heading in `CONFIG.md` is a new page with nothing else to change.
 Links within `CONFIG.md` (`[…](#anchor)`) are rewritten to whichever page the anchor landed on.
 
-Everything else — the landing page, `start/`, and `wiki/` — is hand-written Markdown under
-`src/content/docs/`.
+Everything else — the landing page, `start/`, `privacy.md` and `terms.md` — is hand-written
+Markdown under `src/content/docs/`. Architecture notes for contributors live in `CLAUDE.md`
+at the repository root, not on the site.
 
 ## Deploying
 
@@ -60,5 +61,5 @@ every push to `main` that touches the site, `CONFIG.md` or `assets/`. It needs *
 Pages → Source: GitHub Actions** enabled on the repository once.
 
 The site is configured for a project page at `/moonswing/`. Moving it to a custom domain
-is the two constants at the top of [`astro.config.mjs`](astro.config.mjs): set `site` to the
-domain and `base` to `'/'`.
+is `site` in [`astro.config.mjs`](astro.config.mjs) and `BASE` in
+[`scripts/pages.mjs`](scripts/pages.mjs) (set it to `''`).

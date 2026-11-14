@@ -15,6 +15,12 @@
  * The sidebar nests them under the page's title. `split.describe(title, body)`
  * is each sub-page's description.
  */
+/**
+ * The site's `base`, which `astro.config.mjs` serves it under. Astro does not
+ * prefix it onto markdown links, so the generated pages write it themselves.
+ */
+export const BASE = '/moonswing';
+
 export const PAGES = [
   {
     slug: 'panels',
@@ -71,12 +77,14 @@ export const PAGES = [
     title: 'Overlays and system integration',
     description:
       'The emoji picker, calendar, notifications, on-screen indicator, ' +
-      'power button, authentication prompts, screen sharing and input capture.',
+      'keyboard layouts, power button, authentication prompts, screen ' +
+      'sharing and input capture.',
     sections: [
       'Emoji Picker',
       'Calendar',
       'Notifications',
       'On-Screen Indicator',
+      'Keyboard',
       'Power Button',
       'Authentication Prompts',
       'Screen Sharing',

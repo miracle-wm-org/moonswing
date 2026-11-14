@@ -1,72 +1,46 @@
 ---
 title: Development
-description: Running the shell from a checkout, the test suite, and the parts that need a live compositor.
+description: Running from a checkout, tests, and the parts that need a live compositor.
 sidebar:
   order: 3
 ---
 
-## Running from a checkout
+Run inside a nested compositor (a second miracle-wm, Miriway or Sway on its own
+`WAYLAND_DISPLAY`) — the shell takes over the panels, wallpaper and portal of whatever
+session it runs in.
 
 ```sh
 flutter run -d linux
-```
-
-You will want a nested compositor rather than your own session — the shell takes over
-panels, wallpaper and the portal backend for whatever session it runs in. Running a second
-miracle-wm, Miriway or Sway on its own `WAYLAND_DISPLAY` gives you somewhere to iterate.
-
-## Tests and analysis
-
-```sh
 flutter analyze
-flutter test
-flutter test test/widget_test.dart   # or any single file
+flutter test                         # or: flutter test test/widget_test.dart
 ```
 
-The suite is large and pins the things that are easy to break silently: the module registry,
-the config golden (defaults *and* how a bad value degrades), the built-in themes, the
-hand-transcribed Wayland interface tables against the XML in `protocol/`, and the tap-target
-tests — which tap **corners**, because a centre tap passes on every hit-testing bug they
-exist to catch.
+## Capture and portals
 
-## What tests cannot reach
-
-The capture and screencast stack needs a live compositor, so it is exercised by a standalone
-binary rather than from the shell:
+The capture, screencast and input-capture stack needs a live compositor, so it is driven by a
+standalone binary:
 
 ```sh
 dart compile exe tool/screencast_spike.dart -o /tmp/spike
-
-WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture   # frames from each output
-WAYLAND_DISPLAY=wayland-99 /tmp/spike --portal    # the real backend, auto-accepting
-
-python3 tool/portal_client_test.py                # drives the portal contract
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture         # frames from each output
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --portal          # ScreenCast backend, auto-accepting
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --input-capture   # InputCapture backend, auto-accepting
+python3 tool/portal_client_test.py
+python3 tool/input_capture_client_test.py
 ```
 
-That the whole stack compiles as a `dart compile exe` binary is why everything below the UI
-is Flutter-free on purpose.
-
-The PulseAudio driver has its own:
-
-```sh
-dart run tool/pulse_spike.dart          # MOONSWING_PULSE_LOG=1 for logging
-```
+PulseAudio: `dart run tool/pulse_spike.dart` (`MOONSWING_PULSE_LOG=1` to log).
 
 ## Profiling
+
+Impeller is off by default (set in `linux/runner/my_application.cc`). To measure with it on:
 
 ```sh
 flutter build linux --profile
 MOONSWING_IMPELLER=1 ./build/linux/x64/profile/bundle/moonswing
 ```
 
-Worth knowing before you read a frame graph: panels, overlays and the desktop surface have
-**no repaint boundary of their own**, so any render object marked needing paint re-records
-the whole surface picture and damages the whole output. See
-[Repaint discipline](/wiki/rendering/).
-
 ## Contributing
 
-The shell's own conventions — how to add a bar module, what a store owes its consumers, why
-a `GestureDetector` always carries a `behavior:` — are in the [wiki](/wiki/architecture/) and,
-at more length, in [`CLAUDE.md`](https://github.com/miracle-wm-org/moonswing/blob/main/CLAUDE.md)
-at the root of the repository.
+Code conventions and architecture are in
+[`CLAUDE.md`](https://github.com/miracle-wm-org/moonswing/blob/main/CLAUDE.md).
