@@ -535,6 +535,45 @@ it to change the volume. Click it for a panel with:
 Each section's ⚙ opens its Settings page. No settings of its own, and not in
 the default layout: add `"quick_settings"` to a panel.
 
+### System Tray
+
+Tray icons of running applications (StatusNotifierItem). At rest the icons overlap in a compact strip; hover to spread them out. Click an icon for its menu, or to activate it if it has none. Takes no room while the tray is empty. In the default top panel.
+
+```toml
+[modules.system_tray]
+icon_size = 16
+collapsed_overlap = 10
+expanded_spacing = 6
+hidden_items = ["nm-applet"]
+```
+
+| Key                 | Type         | Default | Description                                            |
+| ------------------- | ------------ | ------- | ------------------------------------------------------ |
+| `icon_size`         | number       | `16`    | Icon size in pixels                                    |
+| `collapsed_overlap` | number       | `10`    | How far each icon overlaps the next at rest, in pixels |
+| `expanded_spacing`  | number       | `6`     | Gap between icons while hovered, in pixels             |
+| `hidden_items`      | string array | `[]`    | Tray items to leave out, by id or title (exact match)  |
+
+Settings › Shell › Modules › System tray edits all four.
+
+### Keyboard Layout
+
+The current input source as a short code (`en` for `us`, `de`, `ara`). Click for your input sources and pick one to switch to; **Keyboard settings…** at the bottom opens Settings › Keyboard. The sources themselves are listed in [`[keyboard]`](#keyboard). In the default top panel.
+
+```toml
+[modules.keyboard_layout]
+hide_when_single = true
+uppercase = false
+```
+
+| Key                | Type | Default | Description                                     |
+| ------------------ | ---- | ------- | ----------------------------------------------- |
+| `hide_when_single` | bool | `true`  | Take no room while there are fewer than two sources |
+| `uppercase`        | bool | `false` | Show `EN` instead of `en`                       |
+
+- Two sources with the same code are numbered: `en`, `en2`.
+- Even with one source the code stays visible when switching failed (in red, with **Retry** in the popup) or the machine is in a layout that is not on your list.
+
 ### System Monitor
 
 CPU, memory and temperature in the bar, with a popup. The same settings drive
@@ -1735,6 +1774,29 @@ volume_sound_volume = 0.6
 - `none`, `off` or `silent`.
 
 The sound plays at the new level, even with `enabled = false`; muting is silent. Sound keys apply live, but if the indicator and the sound were both off at start-up, restart to turn either on. Settings › Shell › Volume & Sound previews the sound and reports one it can't find.
+
+## Keyboard
+
+`[keyboard]` holds your input sources: the keyboard layouts the [Keyboard Layout](#keyboard-layout) module and Settings › Keyboard offer to switch between, in order.
+
+```toml
+[[keyboard.sources]]
+layout = "us"
+
+[[keyboard.sources]]
+layout = "de"
+variant = "nodeadkeys"
+```
+
+| Key       | Type   | Default | Description                                        |
+| --------- | ------ | ------- | -------------------------------------------------- |
+| `layout`  | string | none    | xkb layout code (`us`, `de`, `latam`); required    |
+| `variant` | string | `""`    | xkb variant code; empty is the layout's default    |
+
+- A source with no `layout` is skipped, and an exact duplicate is listed once.
+- With no `sources` key at all, the shell fills it in from the machine's current layouts the first time the module or Settings › Keyboard is shown. An empty list (`sources = []`) is left alone.
+- Settings › Keyboard adds, removes and reorders sources. Edits apply at once.
+- Switching to a source changes the layout for the whole system, through systemd-localed: it may ask for administrator approval, and it keeps the machine's keyboard model and options. Miracle WM applies the new layout at once; other compositors may keep their own keyboard setting.
 
 ## Screen Sharing
 
