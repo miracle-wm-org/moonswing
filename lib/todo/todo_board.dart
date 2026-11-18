@@ -52,6 +52,13 @@ const double kTodoCardGap = 8;
 /// The editor card's width.
 const double kTodoEditorWidth = 540;
 
+/// The width of the popup a click on a card opens.
+const double kTodoDetailsWidth = 400;
+
+/// The room the card popup keeps from the card it hangs beside, and from the
+/// board's edges.
+const double kTodoDetailsGap = 8;
+
 /// The search field's width in the header.
 const double kTodoSearchWidth = 320;
 
@@ -65,18 +72,26 @@ const Duration kTodoCardTooltipDelay = Duration(milliseconds: 1000);
 /// What the editor was opened for: an existing item, or a new one in a column.
 @immutable
 class _EditRequest {
-  const _EditRequest.edit(String this.id, {this.fromDetails = false})
-    : column = null;
-  const _EditRequest.create(TodoColumn this.column)
-    : id = null,
-      fromDetails = false;
+  const _EditRequest.edit(String this.id, {this.details}) : column = null;
+  const _EditRequest.create(TodoColumn this.column) : id = null, details = null;
 
   final String? id;
   final TodoColumn? column;
 
-  /// Whether the editor was opened from the card's details, which closing it
-  /// goes back to.
-  final bool fromDetails;
+  /// The card popup the editor was opened from, which closing it goes back
+  /// to, or null.
+  final _DetailsRequest? details;
+}
+
+/// A card's popup: which card, and where the card was when it was clicked.
+@immutable
+class _DetailsRequest {
+  const _DetailsRequest(this.id, this.anchor);
+
+  final String id;
+
+  /// The card, in the coordinates of the layer the popup is drawn in.
+  final Rect anchor;
 }
 
 /// The todo board and its backdrop.
@@ -212,9 +227,9 @@ class _TodoBoardState extends State<TodoBoard> {
   /// The open card menu, or null. A notifier for [_editing]'s reason.
   final ValueNotifier<_CardMenuRequest?> _menu = ValueNotifier(null);
 
-  /// The card whose details are open, or null. A notifier for [_editing]'s
+  /// The card whose popup is open, or null. A notifier for [_editing]'s
   /// reason.
-  final ValueNotifier<String?> _viewing = ValueNotifier(null);
+  final ValueNotifier<_DetailsRequest?> _viewing = ValueNotifier(null);
 
   /// The panel's layer stack, which a card menu's position is measured in.
   final GlobalKey _layersKey = GlobalKey(debugLabel: 'todo layers');
@@ -254,28 +269,40 @@ class _TodoBoardState extends State<TodoBoard> {
 
   /// Closes the editor and gives the keyboard back to the search field: the
   /// editor's title had it, and a focus left on nothing would leave Escape and
-  /// Ctrl+F with no one to hear them. An editor opened from a card's details
-  /// goes back to them, unless it deleted the card.
+  /// Ctrl+F with no one to hear them. An editor opened from a card's popup
+  /// goes back to it, unless it deleted the card.
   void _closeEditor() {
-    final request = _editing.value;
+    final details = _editing.value?.details;
     _editing.value = null;
-    final id = request?.id;
-    if (request != null &&
-        request.fromDetails &&
-        id != null &&
-        _store.item(id) != null) {
-      _openDetails(id);
+    if (details != null && _store.item(details.id) != null) {
+      _showDetails(details);
     } else {
       _searchFocus.requestFocus();
     }
   }
 
-  /// Opens [id]'s details. The keyboard goes to the board's own node rather
-  /// than staying in the search field behind the scrim, where a key typed at
-  /// the details card would quietly filter the board under it; the board's
-  /// handler is what hears Escape either way.
-  void _openDetails(String id) {
-    _viewing.value = id;
+  /// Opens [id]'s popup beside [card], the clicked card's global rectangle,
+  /// measured into the layer the popup is drawn in.
+  void _openDetails(String id, Rect card) {
+    final layers = _layersKey.currentContext?.findRenderObject();
+    _showDetails(
+      _DetailsRequest(
+        id,
+        layers is RenderBox
+            ? Rect.fromPoints(
+                layers.globalToLocal(card.topLeft),
+                layers.globalToLocal(card.bottomRight),
+              )
+            : card,
+      ),
+    );
+  }
+
+  /// The keyboard goes to the board's own node rather than staying in the
+  /// search field, where a key typed at the popup would quietly filter the
+  /// board under it; the board's handler is what hears Escape either way.
+  void _showDetails(_DetailsRequest request) {
+    _viewing.value = request;
     _focusNode.requestFocus();
   }
 
@@ -284,9 +311,9 @@ class _TodoBoardState extends State<TodoBoard> {
     _searchFocus.requestFocus();
   }
 
-  void _editFromDetails(String id) {
+  void _editFromDetails(_DetailsRequest details) {
     _viewing.value = null;
-    _editing.value = _EditRequest.edit(id, fromDetails: true);
+    _editing.value = _EditRequest.edit(details.id, details: details);
   }
 
   /// Copies [text] from a card menu, saying so on the board if it could not.
@@ -343,11 +370,12 @@ class _TodoBoardState extends State<TodoBoard> {
     if (key != LogicalKeyboardKey.escape) return KeyEventResult.ignored;
     // Details whose card went from under them (a sync, a restore) draw
     // nothing, and are not a layer for Escape to spend itself on.
-    if (_viewing.value case final id? when _store.item(id) == null) {
+    if (_viewing.value case final details?
+        when _store.item(details.id) == null) {
       _viewing.value = null;
     }
     // Escape backs out one layer at a time: a date picker, a card menu, the
-    // editor, a card's details, then the search, then the board. The picker
+    // editor, a card's popup, then the search, then the board. The picker
     // floats in the window's root overlay, out of the board's reach, and
     // registers with the coordinator as a child of the board, so it is the
     // coordinator that knows it is open.
@@ -468,10 +496,10 @@ class _TodoPanel extends StatelessWidget {
   final Widget searchField;
   final ValueNotifier<_EditRequest?> editing;
   final VoidCallback onEditorDone;
-  final ValueNotifier<String?> viewing;
-  final ValueChanged<String> onOpenCard;
+  final ValueNotifier<_DetailsRequest?> viewing;
+  final _CardOpenCallback onOpenCard;
   final VoidCallback onDetailsDone;
-  final ValueChanged<String> onEditFromDetails;
+  final ValueChanged<_DetailsRequest> onEditFromDetails;
   final ValueNotifier<_CardMenuRequest?> menu;
 
   /// On the [Stack] the editor, the other cards and the menu are layered in.
@@ -493,15 +521,15 @@ class _TodoPanel extends StatelessWidget {
           ),
         ),
         Positioned.fill(
-          child: ValueListenableBuilder<String?>(
+          child: ValueListenableBuilder<_DetailsRequest?>(
             valueListenable: viewing,
-            builder: (context, id, _) => id == null
+            builder: (context, request, _) => request == null
                 ? const SizedBox.shrink()
                 : _DetailsLayer(
-                    key: ValueKey(id),
+                    key: ObjectKey(request),
                     store: store,
-                    id: id,
-                    onEdit: () => onEditFromDetails(id),
+                    request: request,
+                    onEdit: () => onEditFromDetails(request),
                     onDone: onDetailsDone,
                     onOpenLink: onOpenLink,
                   ),
@@ -847,8 +875,8 @@ class _ColumnView extends StatelessWidget {
   final _DayFoldsNotifier folds;
   final TodoStore store;
 
-  /// Opens a card's details.
-  final ValueChanged<String> onOpen;
+  /// Opens a card's popup.
+  final _CardOpenCallback onOpen;
   final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
   final VoidCallback onAdd;
@@ -1084,9 +1112,7 @@ class _DayHeading extends StatelessWidget {
               SizedBox(
                 width: 14,
                 child: ShellIcon(
-                  open
-                      ? ShellGlyph.chevronDown
-                      : ShellGlyph.chevronRight,
+                  open ? ShellGlyph.chevronDown : ShellGlyph.chevronRight,
                   size: ShellFontSizes.caption,
                   color: dim,
                 ),
@@ -1134,9 +1160,16 @@ class _DraggableCard extends StatelessWidget {
   final List<String> terms;
   final double width;
   final TodoStore store;
-  final ValueChanged<String> onOpen;
+  final _CardOpenCallback onOpen;
   final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
+
+  /// Opens the card's popup beside the card as it stands on the board.
+  void _open(BuildContext context) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    onOpen(item.id, box.localToGlobal(Offset.zero) & box.size);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1156,7 +1189,7 @@ class _DraggableCard extends StatelessWidget {
       message: title.isEmpty ? null : title,
       delay: kTodoCardTooltipDelay,
       child: HoverRegion(
-        onTap: () => onOpen(item.id),
+        onTap: () => _open(context),
         onSecondaryTapDown: (details) => onMenu(item, details.globalPosition),
         builder: (context, hovered) =>
             _CardChrome(hovered: hovered, stripe: stripe, child: face),
@@ -1811,6 +1844,9 @@ class _CardMenuRequest {
 
 typedef _CardMenuCallback = void Function(TodoItem item, Offset at);
 
+/// A click on a card: which card, and its global rectangle.
+typedef _CardOpenCallback = void Function(String id, Rect card);
+
 /// A card's right-click menu, opened at the pointer over a barrier covering
 /// the board: a click anywhere else, a right click included, closes it.
 ///
@@ -1943,22 +1979,25 @@ Future<bool> _confirmDelete(BuildContext context, TodoItem item) {
 /// the description and the checklist, whose lines are ticked off here — and
 /// the way to edit or delete it.
 ///
-/// Over a scrim that closes it on a click, unlike the editor's: there is no
-/// draft here to lose, since a tick is written as it is made. It follows the
-/// store, so a tick, a sync or an edit elsewhere is on it at once, and it goes
-/// when the card does.
+/// A popup, not a dialog: it hangs beside the card it was opened from, over a
+/// clear barrier that closes it on any press off it, the way the card menu
+/// does. There is no draft here to lose, since a tick is written as it is
+/// made; only Edit opens a dialog, the editor, which has one. Drawn in the
+/// board's own window rather than as a popup surface, for the card menu's
+/// reason. It follows the store, so a tick, a sync or an edit elsewhere is on
+/// it at once, and it goes when the card does.
 class _DetailsLayer extends StatelessWidget {
   const _DetailsLayer({
     super.key,
     required this.store,
-    required this.id,
+    required this.request,
     required this.onEdit,
     required this.onDone,
     required this.onOpenLink,
   });
 
   final TodoStore store;
-  final String id;
+  final _DetailsRequest request;
   final VoidCallback onEdit;
   final VoidCallback onDone;
   final ValueChanged<String> onOpenLink;
@@ -1967,49 +2006,93 @@ class _DetailsLayer extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
     builder: (context, _) {
-      final item = store.item(id);
+      final item = store.item(request.id);
       if (item == null) return const SizedBox.shrink();
-      final theme = ThemeScope.of(context);
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onDone,
-        onSecondaryTapDown: (_) => onDone(),
-        child: ColoredBox(
-          color: theme.scrim,
-          child: Center(
-            child: LayoutBuilder(
-              builder: (context, constraints) => ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: kTodoEditorWidth.clamp(
-                    0,
-                    constraints.maxWidth - 32,
-                  ),
-                  maxHeight: (constraints.maxHeight - 32).clamp(
-                    0,
-                    double.infinity,
-                  ),
-                ),
-                // Absorbs clicks on the card's own chrome, which would
-                // otherwise reach the scrim and close it.
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {},
-                  onSecondaryTapDown: (_) {},
-                  child: _TodoDetails(
-                    store: store,
-                    item: item,
-                    onEdit: onEdit,
-                    onDone: onDone,
-                    onOpenLink: onOpenLink,
-                  ),
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDone,
+              onSecondaryTapDown: (_) => onDone(),
+            ),
+          ),
+          Positioned.fill(
+            child: CustomSingleChildLayout(
+              delegate: _BesideCardLayout(request.anchor),
+              // Absorbs clicks on the popup's own chrome, which would
+              // otherwise fall through to the barrier.
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                onSecondaryTapDown: (_) {},
+                child: _TodoDetails(
+                  store: store,
+                  item: item,
+                  onEdit: onEdit,
+                  onDone: onDone,
+                  onOpenLink: onOpenLink,
                 ),
               ),
             ),
           ),
-        ),
+        ],
       );
     },
   );
+}
+
+/// Hangs the card popup beside [anchor], the card it was opened from: to its
+/// right where the board has the room, else to its left, else over it. Its
+/// top is the card's, slid up where it would hang off the bottom; it is never
+/// wider than [kTodoDetailsWidth] nor taller than the board, less a margin.
+class _BesideCardLayout extends SingleChildLayoutDelegate {
+  const _BesideCardLayout(this.anchor);
+
+  final Rect anchor;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(
+        maxWidth: kTodoDetailsWidth.clamp(
+          0,
+          (constraints.maxWidth - 2 * kTodoDetailsGap).clamp(
+            0,
+            double.infinity,
+          ),
+        ),
+        maxHeight: (constraints.maxHeight - 2 * kTodoDetailsGap).clamp(
+          0,
+          double.infinity,
+        ),
+      );
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final maxX = (size.width - childSize.width - kTodoDetailsGap).clamp(
+      kTodoDetailsGap,
+      double.infinity,
+    );
+    final maxY = (size.height - childSize.height - kTodoDetailsGap).clamp(
+      kTodoDetailsGap,
+      double.infinity,
+    );
+    final right = anchor.right + kTodoDetailsGap;
+    final left = anchor.left - kTodoDetailsGap - childSize.width;
+    final double x;
+    if (right <= maxX) {
+      x = right;
+    } else if (left >= kTodoDetailsGap) {
+      x = left;
+    } else {
+      x = anchor.left.clamp(kTodoDetailsGap, maxX);
+    }
+    return Offset(x, anchor.top.clamp(kTodoDetailsGap, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_BesideCardLayout oldDelegate) =>
+      oldDelegate.anchor != anchor;
 }
 
 class _TodoDetails extends StatelessWidget {
@@ -2035,18 +2118,12 @@ class _TodoDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     final editable = store.editable;
     final checklist = parseTodoBody(item.body).checklist;
-    return Container(
-      decoration: BoxDecoration(
-        color: opaquePopupFill(theme),
-        borderRadius: BorderRadius.circular(ShellRadii.card),
-        border: Border.all(color: theme.accent),
-        boxShadow: [BoxShadow(color: theme.popupShadowColor, blurRadius: 24)],
-      ),
+    // The theme's popup card, as the card menu's is: the editor is the dialog.
+    return PopupCard(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -2090,12 +2167,8 @@ class _TodoDetails extends StatelessWidget {
                       onTap: () => _delete(context),
                     ),
                   ),
+                // No Close: a click off the popup, or Escape, closes it.
                 const Spacer(),
-                SizedBox(
-                  width: 90,
-                  child: SettingsActionButton(label: 'Close', onTap: onDone),
-                ),
-                const SizedBox(width: 8),
                 SizedBox(
                   width: 90,
                   child: SettingsActionButton(
@@ -2301,6 +2374,7 @@ class _TodoEditorState extends State<_TodoEditor> {
   late final TextEditingController _title = TextEditingController(
     text: widget.existing?.title ?? '',
   );
+
   /// The body as the card had it, split: the description goes in the field,
   /// the checklist in the list under it, and Save puts them back together.
   late final TodoBody _parsed = parseTodoBody(widget.existing?.body ?? '');
