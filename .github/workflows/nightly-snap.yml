@@ -1,17 +1,52 @@
+# Builds and republishes the classic snap from `main` against the head of
+# Flutter `master` (snap/snapcraft.yaml pins no revision).
+#
+# The shell is built on Flutter's experimental windowing API, which upstream
+# renames without notice, so the nightly is what finds out. It runs on every push
+# to `main` and again every night whether or not `main` moved, because a new
+# Flutter is enough to break it. A failed run opens an issue labelled
+# `nightly-snap` (or comments on the one already open), and the next green run
+# closes it — a red nightly is never silent and never two issues.
+#
+# A failure leaves the `nightly` release as it was: the publish steps only run
+# after a successful build.
+
 name: Nightly Snap
 on:
   push:
     branches: [main]
+  schedule:
+    # 08:00 UTC, after flutter-master.yml (07:00), so a break in plain
+    # `flutter build` is already there to read when this one goes red.
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+
+# A push landing during the nightly waits for it rather than racing it to the
+# release.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      flutter: ${{ steps.flutter.outputs.revision }}
     steps:
       - uses: actions/checkout@v4
+      # The head of Flutter master as this run starts. The snap build clones it
+      # moments later and prints the exact revision it built ("Flutter
+      # framework:" in the log); this is what the release notes and a failure
+      # issue can name without unpacking the snap.
+      - id: flutter
+        run: |
+          rev=$(git ls-remote https://github.com/flutter/flutter.git refs/heads/master | cut -f1)
+          echo "revision=${rev}" >> "$GITHUB_OUTPUT"
+          echo "Flutter master: ${rev}"
       - id: build
         uses: snapcore/action-build@v1
       - uses: actions/upload-artifact@v4
@@ -26,7 +61,8 @@ jobs:
           prerelease: true
           files: ${{ steps.build.outputs.snap }}
           body: |
-            Automated nightly classic snap built from the latest `main`.
+            Automated nightly classic snap built from the latest `main` against the latest Flutter `master`.
+            Built from ${{ github.sha }}; Flutter master was at flutter/flutter@${{ steps.flutter.outputs.revision }} when the build started.
             Install: `sudo snap install ./moonswing_*.snap --classic --dangerous`
       # The action replaces an asset of the same name but never removes one, so
       # a rename (graceful-shell → moonswing) or a version bump leaves the old
@@ -43,4 +79,59 @@ jobs:
                 [ "$asset" = "$keep" ] && continue
                 echo "Deleting $asset"
                 gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
+              done
+
+  # One open issue per breakage: the first red run opens it, later red runs
+  # comment on it, so a week of failures is one thread with a run per night.
+  report-failure:
+    needs: build
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+          FLUTTER: ${{ needs.build.outputs.flutter }}
+        run: |
+          # --force makes it idempotent: created the first time, rewritten in place after.
+          gh label create nightly-snap --repo "$REPO" --force \
+            --color B60205 --description "The nightly snap build failed"
+          body=$(cat <<EOF
+          The nightly snap failed to build or publish.
+
+          - Run: ${RUN_URL} (${EVENT})
+          - Moonswing: ${SHA}
+          - Flutter master when the run started: ${FLUTTER:-unknown}
+
+          The build log prints the exact Flutter revision it built after \`Flutter framework:\`. The usual cause is a rename in Flutter's experimental windowing API (\`package:flutter/src/widgets/_window*.dart\`); \`flutter analyze\` against master names it precisely. The \`nightly\` release still holds the last good snap. This issue closes itself on the next green run.
+          EOF
+          )
+          number=$(gh issue list --repo "$REPO" --label nightly-snap --state open \
+            --json number -q '.[].number' | head -n1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --label nightly-snap \
+              --title "Nightly snap build failed" --body "$body"
+          fi
+
+  close-failure:
+    needs: build
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue list --repo "$REPO" --label nightly-snap --state open --json number -q '.[].number' \
+            | while read -r number; do
+                gh issue close "$number" --repo "$REPO" --reason completed \
+                  --comment "Green again: ${RUN_URL}"
               done

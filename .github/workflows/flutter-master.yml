@@ -3,14 +3,13 @@
 # The shell consumes Flutter's private, experimental windowing APIs
 # (`package:flutter/src/widgets/_window.dart` and friends) through
 # `layer_shell` and `packages/ext_session_lock`, and upstream renames them
-# without notice — even in patch releases. The nightly snap used to be what
-# discovered that, badly: it pinned nothing, so a rename landing overnight
-# turned the release artifact red and stayed red for two weeks.
+# without notice — even in patch releases.
 #
-# The snap now builds a pinned revision (snap/snapcraft.yaml), and this job is
-# what took over the early-warning role. When it goes red, the fix is to migrate
-# the code; when it is green, its framework revision is the one to move that pin
-# to.
+# The snap builds against master's head too (snap/snapcraft.yaml pins nothing),
+# and .github/workflows/nightly-snap.yml is what opens an issue when a rename
+# breaks it. This job is the faster half of the same signal: it runs on every
+# pull request, so a migration is proven against master before it merges, and
+# its analyzer step names a rename precisely where a snap log buries it.
 #
 # It does not run the shell. libgtk-layer-shell and libgtk-session-lock are
 # dlopen'd or linked but never exercised on a headless runner, and there is no
@@ -101,8 +100,7 @@ jobs:
         run: flutter config --enable-windowing
 
       # Its own step on purpose: when this job goes red, the framework revision
-      # and date are the first thing you want, without digging through logs. It
-      # is also the revision to copy into snap/snapcraft.yaml when it is green.
+      # and date are the first thing you want, without digging through logs.
       - name: Report Flutter version
         run: flutter --version
 

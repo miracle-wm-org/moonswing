@@ -295,6 +295,10 @@ class SessionLockWindowingOwnerLinux extends ExtendedWindowingOwnerLinux {
 /// `gtk_session_lock_lock_new_surface()` has to claim the GDK window's surface
 /// before GTK maps it, which is why window creation is driven here rather than
 /// reusing the SDK's regular controller.
+///
+/// Mounted like any other controller: the SDK's one `Window` widget (or a
+/// `WindowEntry` in a `WindowRegistry`) takes every `BaseWindowController`, so
+/// there is no lock-specific widget to go with it.
 class SessionLockWindowController extends WindowController
     implements BaseWindowControllerLinux {
   /// Creates a lock window on [monitor] for an already-[SessionLock.prepare]d
@@ -559,34 +563,4 @@ class SessionLockWindowController extends WindowController
 
   @override
   String get title => '';
-}
-
-/// Mounts the Flutter view of a [SessionLockWindowController].
-///
-/// Mirrors `layer_shell`'s `LayerShellWindow`.
-class SessionLockWindow extends StatelessWidget {
-  SessionLockWindow({
-    super.key,
-    required this.controller,
-    required this.child,
-  }) {
-    if (!isWindowingEnabled) {
-      throw UnsupportedError(_kWindowingDisabledErrorMessage);
-    }
-  }
-
-  final SessionLockWindowController controller;
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (BuildContext context, Widget? _) => View(
-        view: controller.rootView,
-        child: WindowScope(controller: controller, child: child),
-      ),
-    );
-  }
 }
