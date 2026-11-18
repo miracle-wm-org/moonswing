@@ -22,6 +22,7 @@ import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_checklist.dart';
@@ -366,9 +367,10 @@ void main() {
   ) async {
     // A step among the text, as another client might have put it.
     final store = await pump(tester, [
-      _item('a', TodoColumn.inProgress).copyWith(
-        body: '- [x] Draft\nBody of a\n\n* [ ] Review\n- [ ] Send',
-      ),
+      _item(
+        'a',
+        TodoColumn.inProgress,
+      ).copyWith(body: '- [x] Draft\nBody of a\n\n* [ ] Review\n- [ ] Send'),
     ]);
     List<bool> ticks() => [
       for (final step in parseTodoBody(store.item('a')!.body).checklist)
@@ -415,6 +417,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(detailsCard, findsNothing);
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
+  });
+
+  testWidgets('a card opens as a popup beside it, not a dialog', (
+    tester,
+  ) async {
+    await pump(tester, [
+      _item('a', TodoColumn.inbox),
+      _item(
+        'z',
+        TodoColumn.abandoned,
+        history: [
+          TodoMove(
+            from: null,
+            to: TodoColumn.abandoned,
+            at: DateTime(2026, 9, 24, 9),
+          ),
+        ],
+      ),
+    ]);
+    Rect cardRect(String title) => tester.getRect(
+      find.ancestor(
+        of: find.text(title),
+        matching: find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == '_DraggableCard',
+        ),
+      ),
+    );
+    final scrims = find.byWidgetPredicate(
+      (w) => w is ColoredBox && w.color == const ThemeConfig().scrim,
+    );
+    final scrimsBefore = scrims.evaluate().length;
+
+    // The first column has room to its right: the popup hangs there, its
+    // top level with the card's.
+    final a = cardRect('Card a');
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    var popup = tester.getRect(detailsCard);
+    expect(popup.left, greaterThanOrEqualTo(a.right));
+    expect(popup.top, a.top);
+    expect(popup.width, lessThanOrEqualTo(kTodoDetailsWidth));
+    // Over a clear barrier, not a scrim: the board stays as it was.
+    expect(scrims.evaluate().length, scrimsBefore);
+    // A popup is dismissed, not closed: it has no Close button.
+    expect(
+      find.descendant(of: detailsCard, matching: find.text('Close')),
+      findsNothing,
+    );
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(detailsCard, findsNothing);
+
+    // The last column has none: it hangs to the left instead. Abandoned
+    // folds every day, so the card is unfolded first.
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+    final z = cardRect('Card z');
+    await tester.tap(find.text('Card z'));
+    await tester.pumpAndSettle();
+    popup = tester.getRect(detailsCard);
+    expect(popup.right, lessThanOrEqualTo(z.left));
+    expect(popup.top, z.top);
+
+    // Only Edit is a dialog: the editor, over a scrim.
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(detailsCard, findsNothing);
+    expect(scrims.evaluate().length, scrimsBefore + 1);
   });
 
   testWidgets('a card\'s details delete it, once asked', (tester) async {
