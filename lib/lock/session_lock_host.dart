@@ -12,7 +12,7 @@ import 'package:moonswing/popup.dart';
 /// connection alive.
 ///
 /// The root keeps three duties: reacting to [LockController] by calling [lock],
-/// building a `SessionLockWindow` per controller in [windows], and calling
+/// registering a `WindowEntry` per controller in [windows], and calling
 /// [dispose] from its own — which abandons rather than unlocks, because a shell
 /// dying while the session is locked must leave it locked.
 class SessionLockHost {

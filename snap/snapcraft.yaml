@@ -103,26 +103,22 @@ parts:
         git clone -b master \
           https://github.com/flutter/flutter.git "${CRAFT_PART_BUILD}/flutter-distro"
       fi
-      # Pinned deliberately. The shell is built on Flutter's *experimental*
-      # windowing API, which upstream renames without notice — a rename landing
-      # overnight used to turn the nightly release artifact red (it did, for two
-      # weeks, when RegularWindowController became WindowController). This is a
-      # release build, so it does not track HEAD; the early-warning signal is
-      # .github/workflows/flutter-master.yml, which builds against master daily.
+      # Always the head of `master`, never a pinned revision. The shell is built
+      # on Flutter's *experimental* windowing API, which upstream renames without
+      # notice, so a rename landing overnight turns this build red — and that is
+      # the point: .github/workflows/nightly-snap.yml rebuilds every night and
+      # opens an issue when it fails, so the migration happens the day the API
+      # moves instead of piling up behind a pin.
       #
-      # To bump: wait for a green run of that workflow, take the framework
-      # revision it prints, and put it here. A detached checkout at a real
-      # revision still carries the tags `git describe` needs.
-      #
-      # b710a6e029 — flutter/flutter master @ 2026-08-07.
-      FLUTTER_REV=b710a6e0290f7cb9c3ad55666c5f8573aed2ee8f
-      # The clone above is skipped when a previous build left one behind, and
-      # that one predates any revision bumped in since — fetch before checking
-      # out anything it might not have.
+      # The clone above is skipped when a previous build left one behind, so
+      # bring that one up to the current head. `-B master` rather than a
+      # detached checkout: the tool reads its channel from the branch, and the
+      # windowing feature flag is a master-channel one.
+      git -C "${CRAFT_PART_BUILD}/flutter-distro" fetch --tags origin master
+      git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout -f -B master origin/master
+      # The first thing to look for in the log of a red build.
       git -C "${CRAFT_PART_BUILD}/flutter-distro" \
-        rev-parse --verify --quiet "${FLUTTER_REV}^{commit}" > /dev/null \
-        || git -C "${CRAFT_PART_BUILD}/flutter-distro" fetch --tags origin master
-      git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout --detach "${FLUTTER_REV}"
+        log -1 --format='Flutter framework: %H (%cd)'
       flutter config --enable-windowing
       craftctl default
       # moonswing-mcp, the MCP server an AI agent drives the desktop through
