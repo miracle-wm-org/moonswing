@@ -112,6 +112,14 @@ dependencies:
   media_kit_libs_linux: ^1.0.4
   ubuntu_session: ^0.0.4
 
+# media_kit_video depends on package:volume_controller, whose Linux plugin
+# opens the ALSA mixer as it is registered and aborts the shell when that
+# fails (see packages/volume_controller). Nothing here uses it, so it is
+# replaced by a Dart-only stand-in and no plugin is registered at all.
+dependency_overrides:
+  volume_controller:
+    path: packages/volume_controller
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
