@@ -144,6 +144,19 @@ parts:
       # shell on its first themed icon; snap/local/moonswing-wrapper points
       # GDK_PIXBUF_MODULE_FILE at a cache of these loaders instead.
       - librsvg2-common
+    # libasound is the host's whenever the host has one. It reads the host's
+    # /usr/share/alsa configuration and dlopens the host's plugin modules from
+    # a compiled-in path, and those are built against the host's libasound: on
+    # a PipeWire host `default` is libasound_module_ctl_pipewire.so, which
+    # refused core22's copy outright ("version `ALSA_1.2.15' not found") — the
+    # same bargain as Mesa and its DRI drivers below. It cannot simply be
+    # excluded, though: libmpv names it DT_NEEDED, so a host with no ALSA at
+    # all would fail to start. So the staged copy is moved off the search path
+    # and snap/local/moonswing-wrapper adds its directory back only when the
+    # host has none.
+    organize:
+      usr/lib/x86_64-linux-gnu/libasound.so.2: usr/lib/x86_64-linux-gnu/alsa-fallback/libasound.so.2
+      usr/lib/x86_64-linux-gnu/libasound.so.2.0.0: usr/lib/x86_64-linux-gnu/alsa-fallback/libasound.so.2.0.0
     prime:
       # Classic confinement uses the host graphics stack. Bundled Mesa
       # (pulled in transitively by libmpv/gtk) is a different version than the

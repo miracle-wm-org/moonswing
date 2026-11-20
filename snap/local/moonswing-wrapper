@@ -196,4 +196,23 @@ else
   note "could not index the bundled image loaders; icons may fail to load."
 fi
 
+# libasound must be the host's wherever the host has one: it loads the host's
+# ALSA plugin modules, which are built against the host's libasound and refuse
+# an older one (see the `organize:` note in snap/snapcraft.yaml). The staged
+# copy sits in a directory of its own, off the search path, and is offered only
+# here, to a host with none — where libmpv's DT_NEEDED would otherwise stop the
+# shell starting. Under $SNAP, so lib/host_process.dart takes it back off for
+# host programs like every other staged entry.
+host_has_libasound() {
+  for d in /usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib64 /lib64 \
+    /usr/lib /lib; do
+    [ -e "$d/libasound.so.2" ] && return 0
+  done
+  /sbin/ldconfig -p 2>/dev/null | grep -q 'libasound\.so\.2 ' && return 0
+  return 1
+}
+if ! host_has_libasound; then
+  export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$SNAP/usr/lib/x86_64-linux-gnu/alsa-fallback"
+fi
+
 exec "$SNAP/moonswing" "$@"

@@ -1,0 +1,8 @@
+name: volume_controller
+description: "A Dart-only stand-in for package:volume_controller, with no native plugin."
+publish_to: "none"
+# Above the 3.x line media_kit_video asks for, so the override satisfies it.
+version: 3.4.1
+
+environment:
+  sdk: ^3.1.0
