@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
@@ -118,8 +119,49 @@ void main() {
     expect(ok, isTrue);
     // --user, and try-restart so a session with no systemd user instance is
     // not forced to start one. Only the frontend: the backends are not ours.
-    expect(args, ['--user', 'try-restart', 'xdg-desktop-portal.service']);
+    // --no-block, or systemctl waits out a job that can stay queued behind
+    // session start-up for as long as that takes.
+    expect(args, [
+      '--user',
+      '--no-block',
+      'try-restart',
+      'xdg-desktop-portal.service',
+    ]);
   });
+
+  test('the restarted frontend is polled for, through its absence', () async {
+    var polls = 0;
+    await reconcilePortalFrontend(
+      client: client(),
+      backendSourceTypes: 3,
+      // The old frontend still up, then none at all, then the new one.
+      read: reads([0, 0, null, null, 3]),
+      restart: () async => true,
+      delay: (_) async => polls++,
+    );
+    expect(polls, 4);
+    expect(log.join('\n'), contains('now advertises source types 3'));
+  });
+
+  test('a frontend that never comes back is named, and the poll ends',
+      () async {
+    var polls = 0;
+    await reconcilePortalFrontend(
+      client: client(),
+      backendSourceTypes: 3,
+      read: reads([0, null]),
+      restart: () async => true,
+      delay: (_) async => polls++,
+    );
+    expect(polls, kFrontendPollAttempts);
+    expect(log.join('\n'), contains('did not come back'));
+  });
+
+  test('a systemctl that never answers is a false, never a hang', () async {
+    final ok = await restartPortalFrontend(
+        runner: (_, __) => Completer<ProcessResult>().future);
+    expect(ok, isFalse);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   test('no systemctl is a false, never a throw', () async {
     final ok = await restartPortalFrontend(
