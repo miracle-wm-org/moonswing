@@ -127,9 +127,11 @@ class ShellServices extends ChangeNotifier {
   /// the feature dead, which is the lie this contract exists to prevent.
   ///
   /// The task is started on its own event-loop turn: one that works synchronously
-  /// before its first `await` — the application index is thousands of FFI
-  /// round-trips with no suspension point — would otherwise hold the isolate
-  /// through every other task registered beside it.
+  /// before its first `await` would otherwise hold the isolate through every
+  /// other task registered beside it. That is a mitigation, not a licence: any
+  /// synchronous stretch still holds every panel's frame for as long as it
+  /// runs, so a walk over the whole system belongs on another isolate (the
+  /// application index's does — `loadInstalledAppsInBackground`).
   void run(ShellService service, Future<void> Function() task) {
     if (_started.contains(service)) return;
     _started.add(service);

@@ -475,9 +475,7 @@ void _startShellServices({
   // Enumerates installed applications while the shell is already on screen, so
   // the launcher can paint the instant its shortcut fires. Until it lands the
   // launcher and app choosers show a loader rather than "No applications".
-  services.run(ShellService.applications, () async {
-    startAppIndexService();
-  });
+  services.run(ShellService.applications, startAppIndexService);
 }
 
 /// Opens the Wayland connection, registers the shell's global shortcuts, and
@@ -3738,10 +3736,10 @@ LayershellWindowController _fullScreenOverlay(
 /// Feeds a root-owned overlay the application index live, so the root need not
 /// rebuild every view when it lands.
 ///
-/// Two sources: [AppIndex] notifies on install and removal, and the
-/// [ShellServicesScope] answers "is it built yet" — and delivers the very first
-/// list, because [AppIndex.start] fills `searchable` without notifying. Both
-/// reads have to happen on this one element or the loader never comes down.
+/// Two sources: [AppIndex] notifies whenever a list lands — the first, and
+/// every install or removal after it — and the [ShellServicesScope] answers "is
+/// it built yet", so an index that is still walking shows a loader rather than
+/// "No applications". Both reads happen on this one element.
 class _AppIndexBuilder extends StatelessWidget {
   const _AppIndexBuilder({required this.builder});
 
