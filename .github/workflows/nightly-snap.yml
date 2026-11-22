@@ -10,11 +10,20 @@
 #
 # A failure leaves the `nightly` release as it was: the publish steps only run
 # after a successful build.
+#
+# A pull request that touches the packaging builds the snap too, so a change to
+# how it is built can be installed and tried before it merges: the snap is the
+# run's `moonswing-snap` artifact. Only `main` publishes the release or opens
+# and closes the failure issue, so a pull request never replaces the nightly.
 
 name: Nightly Snap
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - 'snap/**'
+      - '.github/workflows/nightly-snap.yml'
   schedule:
     # 08:00 UTC, after flutter-master.yml (07:00), so a break in plain
     # `flutter build` is already there to read when this one goes red.
@@ -26,10 +35,11 @@ permissions:
   issues: write
 
 # A push landing during the nightly waits for it rather than racing it to the
-# release.
+# release. A pull request has a group of its own, since it publishes nothing,
+# and a newer push to it supersedes the build in progress.
 concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -38,15 +48,19 @@ jobs:
       flutter: ${{ steps.flutter.outputs.revision }}
     steps:
       - uses: actions/checkout@v4
-      # The head of Flutter master as this run starts. The snap build clones it
-      # moments later and prints the exact revision it built ("Flutter
+      # The Flutter revision the snap builds: the one snap/snapcraft.yaml pins
+      # in FLUTTER_REV, or the head of master as this run starts when it pins
+      # none. The snap build prints the exact revision it built ("Flutter
       # framework:" in the log); this is what the release notes and a failure
       # issue can name without unpacking the snap.
       - id: flutter
         run: |
-          rev=$(git ls-remote https://github.com/flutter/flutter.git refs/heads/master | cut -f1)
+          rev=$(sed -n 's/^ *FLUTTER_REV=\([0-9a-f]\{40\}\)$/\1/p' snap/snapcraft.yaml)
+          if [ -z "$rev" ]; then
+            rev=$(git ls-remote https://github.com/flutter/flutter.git refs/heads/master | cut -f1)
+          fi
           echo "revision=${rev}" >> "$GITHUB_OUTPUT"
-          echo "Flutter master: ${rev}"
+          echo "Flutter: ${rev}"
       - id: build
         uses: snapcore/action-build@v1
       - uses: actions/upload-artifact@v4
@@ -54,6 +68,7 @@ jobs:
           name: moonswing-snap
           path: ${{ steps.build.outputs.snap }}
       - name: Publish rolling nightly release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
@@ -61,14 +76,15 @@ jobs:
           prerelease: true
           files: ${{ steps.build.outputs.snap }}
           body: |
-            Automated nightly classic snap built from the latest `main` against the latest Flutter `master`.
-            Built from ${{ github.sha }}; Flutter master was at flutter/flutter@${{ steps.flutter.outputs.revision }} when the build started.
+            Automated nightly classic snap built from the latest `main` against Flutter `master`.
+            Built from ${{ github.sha }} against flutter/flutter@${{ steps.flutter.outputs.revision }}.
             Install: `sudo snap install ./moonswing_*.snap --classic --dangerous`
       # The action replaces an asset of the same name but never removes one, so
       # a rename (graceful-shell → moonswing) or a version bump leaves the old
       # snap on the release beside the new one. After the upload, so a failed
       # build never leaves the release empty.
       - name: Drop superseded assets
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           KEEP: ${{ steps.build.outputs.snap }}
@@ -85,7 +101,7 @@ jobs:
   # comment on it, so a week of failures is one thread with a run per night.
   report-failure:
     needs: build
-    if: failure()
+    if: failure() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Open or update the nightly-failure issue
@@ -105,7 +121,7 @@ jobs:
 
           - Run: ${RUN_URL} (${EVENT})
           - Moonswing: ${SHA}
-          - Flutter master when the run started: ${FLUTTER:-unknown}
+          - Flutter: ${FLUTTER:-unknown}
 
           The build log prints the exact Flutter revision it built after \`Flutter framework:\`. The usual cause is a rename in Flutter's experimental windowing API (\`package:flutter/src/widgets/_window*.dart\`); \`flutter analyze\` against master names it precisely. The \`nightly\` release still holds the last good snap. This issue closes itself on the next green run.
           EOF
@@ -121,7 +137,7 @@ jobs:
 
   close-failure:
     needs: build
-    if: success()
+    if: success() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Close the nightly-failure issue

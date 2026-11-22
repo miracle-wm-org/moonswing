@@ -103,19 +103,25 @@ parts:
         git clone -b master \
           https://github.com/flutter/flutter.git "${CRAFT_PART_BUILD}/flutter-distro"
       fi
-      # Always the head of `master`, never a pinned revision. The shell is built
-      # on Flutter's *experimental* windowing API, which upstream renames without
-      # notice, so a rename landing overnight turns this build red — and that is
-      # the point: .github/workflows/nightly-snap.yml rebuilds every night and
-      # opens an issue when it fails, so the migration happens the day the API
-      # moves instead of piling up behind a pin.
+      # Normally the head of `master`: the shell is built on Flutter's
+      # *experimental* windowing API, which upstream renames without notice, and
+      # .github/workflows/nightly-snap.yml rebuilds every night so a rename is
+      # migrated the day it lands.
+      #
+      # TEMPORARILY PINNED to f154927a716, the master commit just before
+      # flutter/flutter ec58d3f3224 ("[Linux] Desynchronize the Wayland
+      # subsurface so frames don't redraw the GTK window", Nov 19). Since that
+      # change landed the shell starts and presents nothing, from the snap and
+      # from a source build alike; this pin is the test of whether that commit
+      # is the cause. Set FLUTTER_REV to `origin/master` to track the head again.
       #
       # The clone above is skipped when a previous build left one behind, so
-      # bring that one up to the current head. `-B master` rather than a
-      # detached checkout: the tool reads its channel from the branch, and the
-      # windowing feature flag is a master-channel one.
+      # bring that one up to date first. `-B master` rather than a detached
+      # checkout: the tool reads its channel from the branch, and the windowing
+      # feature flag is a master-channel one.
+      FLUTTER_REV=f154927a716f239ef7608efaad4b52c84c9a8a50
       git -C "${CRAFT_PART_BUILD}/flutter-distro" fetch --tags origin master
-      git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout -f -B master origin/master
+      git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout -f -B master "${FLUTTER_REV}"
       # The first thing to look for in the log of a red build.
       git -C "${CRAFT_PART_BUILD}/flutter-distro" \
         log -1 --format='Flutter framework: %H (%cd)'
