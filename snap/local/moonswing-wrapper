@@ -153,7 +153,10 @@ register_portal() {
   # cannot replace it: it is the newly written *config* that needs re-reading
   # here, and a frontend still routed to a working xdg-desktop-portal-wlr
   # answers with wlr's source types rather than the zero the shell repairs.
-  if systemctl --user try-restart xdg-desktop-portal.service 2>/dev/null; then
+  # --no-block: queue the job and go on to exec the shell. Waiting for it held
+  # the shell off the screen for as long as the job sat queued behind session
+  # start-up.
+  if systemctl --user --no-block try-restart xdg-desktop-portal.service 2>/dev/null; then
     :
   else
     note "could not restart xdg-desktop-portal; screen sharing may need"

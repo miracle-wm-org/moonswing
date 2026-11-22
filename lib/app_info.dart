@@ -9,6 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart' show Utf8;
@@ -444,6 +445,62 @@ List<AppEntry> loadInstalledApps() {
   entries.sort(
       (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   return entries;
+}
+
+/// [loadInstalledApps] on a background isolate, so the walk — thousands of FFI
+/// calls with no suspension point — never holds the UI isolate, and with it
+/// every panel's frame.
+///
+/// GDesktopAppInfo is threadsafe (GLib 2.40), and its directory monitors live on
+/// GLib's worker context, so the walk may run on any thread. What crosses back
+/// is plain data and each retained `GAppInfo*` as an address: the references
+/// are the process's, not the isolate's, and are the caller's to unref exactly
+/// as from [loadInstalledApps].
+Future<List<AppEntry>> loadInstalledAppsInBackground() async {
+  final rows = await Isolate.run(_installedAppRows, debugName: 'app-index');
+  return [for (final row in rows) row.toEntry()];
+}
+
+List<_AppRow> _installedAppRows() =>
+    [for (final entry in loadInstalledApps()) _AppRow.of(entry)];
+
+/// An [AppEntry] in a form an isolate can send: the pointer as its address.
+class _AppRow {
+  _AppRow.of(AppEntry e)
+      : id = e.id,
+        name = e.name,
+        iconName = e.iconName,
+        categories = e.categories,
+        genericName = e.genericName,
+        startupWmClass = e.startupWmClass,
+        keywords = e.keywords,
+        actions = e.actions,
+        filename = e.filename,
+        appInfo = e.appInfo.address;
+
+  final String id;
+  final String name;
+  final String iconName;
+  final List<String> categories;
+  final String genericName;
+  final String startupWmClass;
+  final List<String> keywords;
+  final List<AppAction> actions;
+  final String filename;
+  final int appInfo;
+
+  AppEntry toEntry() => AppEntry(
+        id: id,
+        name: name,
+        iconName: iconName,
+        categories: categories,
+        genericName: genericName,
+        startupWmClass: startupWmClass,
+        keywords: keywords,
+        actions: actions,
+        filename: filename,
+        appInfo: ffi.Pointer.fromAddress(appInfo),
+      );
 }
 
 AppEntry _entryFromAppInfo(

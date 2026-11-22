@@ -24,6 +24,7 @@
 //
 // Flutter-free, like the rest of `lib/screencast/`.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
@@ -39,10 +40,19 @@ const String screenCastFrontendInterface = 'org.freedesktop.portal.ScreenCast';
 /// The frontend's systemd user unit.
 const String portalFrontendUnit = 'xdg-desktop-portal.service';
 
-/// How long to give the frontend to export its interfaces again after a
-/// restart, before reading back what it now says. Diagnostic only — the repair
-/// has already happened either way.
-const Duration kFrontendRestartGrace = Duration(milliseconds: 750);
+/// How long `systemctl` itself may take. With `--no-block` it only enqueues the
+/// job and returns at once; this bounds a systemd that does not answer at all.
+const Duration kFrontendRestartTimeout = Duration(seconds: 5);
+
+/// How long one read of the frontend may take. A frontend in the middle of its
+/// own start-up can sit on a call indefinitely, and package:dbus has no default
+/// timeout, so without this a read could stay pending for the life of the shell.
+const Duration kFrontendReadTimeout = Duration(seconds: 2);
+
+/// How often, and how many times, to look for the restarted frontend before
+/// giving up on it. Diagnostic only — the repair has been asked for either way.
+const Duration kFrontendPollInterval = Duration(milliseconds: 500);
+const int kFrontendPollAttempts = 40;
 
 /// Reads `AvailableSourceTypes` from a frontend that is *already running*.
 ///
@@ -59,11 +69,13 @@ const Duration kFrontendRestartGrace = Duration(milliseconds: 750);
 /// this backend will already be on the bus for it to read.
 Future<int?> readFrontendSourceTypes(DBusClient client) async {
   try {
-    if (!(await client.listNames()).contains(portalFrontendName)) return null;
+    final names = await client.listNames().timeout(kFrontendReadTimeout);
+    if (!names.contains(portalFrontendName)) return null;
     final object = DBusRemoteObject(client,
         name: portalFrontendName, path: DBusObjectPath(portalFrontendPath));
-    final value = await object.getProperty(
-        screenCastFrontendInterface, 'AvailableSourceTypes');
+    final value = await object
+        .getProperty(screenCastFrontendInterface, 'AvailableSourceTypes')
+        .timeout(kFrontendReadTimeout);
     // Type-test, never cast: the portal contract says `u`, and a frontend that
     // answered something else is one this cannot reason about anyway.
     return value is DBusUint32 ? value.value : null;
@@ -73,19 +85,35 @@ Future<int?> readFrontendSourceTypes(DBusClient client) async {
   }
 }
 
-/// Restarts the frontend, and only the frontend.
+/// Asks systemd to restart the frontend, and only the frontend.
 ///
 /// `try-restart` rather than `restart`, the rule the snap's launcher follows: it
 /// is a no-op when the unit is not running, so a session with no systemd user
 /// instance is not forced to start one. The backends are not ours to bounce.
+///
+/// **`--no-block`, always.** Without it `systemctl` waits for the whole stop and
+/// start job, and during session start-up that job can sit queued behind units
+/// still activating (`xdg-desktop-portal.service` is ordered after
+/// `graphical-session.target`), or behind a frontend whose own start-up is
+/// waiting on a backend — for as long as that takes, which was the
+/// "stuck on start-up" with this function's log line the last one printed. True
+/// means the job was *queued*; [reconcilePortalFrontend] looks for the result.
 Future<bool> restartPortalFrontend({
   Future<ProcessResult> Function(String, List<String>)? runner,
 }) async {
   final run = runner ?? runHostProcess;
   try {
-    final result =
-        await run('systemctl', ['--user', 'try-restart', portalFrontendUnit]);
+    final result = await run('systemctl', [
+      '--user',
+      '--no-block',
+      'try-restart',
+      portalFrontendUnit,
+    ]).timeout(kFrontendRestartTimeout);
     return result.exitCode == 0;
+  } on TimeoutException {
+    screencastLog('systemctl did not answer within '
+        '${kFrontendRestartTimeout.inSeconds}s');
+    return false;
   } catch (_) {
     // No systemctl at all (a container, a non-systemd session).
     return false;
@@ -130,10 +158,21 @@ Future<void> reconcilePortalFrontend({
     return;
   }
 
-  await delay(kFrontendRestartGrace);
-  final now = await read(client);
-  if (now != null && now != 0) {
-    screencastLog('portal frontend now advertises source types $now');
+  // The restart was only queued, so the first reads may still find the old
+  // frontend (0) or none at all (null) while it is between the two. Poll for
+  // the new one rather than guessing how long that takes; every read is bounded.
+  int? now;
+  for (var i = 0; i < kFrontendPollAttempts; i++) {
+    await delay(kFrontendPollInterval);
+    now = await read(client);
+    if (now != null && now != 0) {
+      screencastLog('portal frontend now advertises source types $now');
+      return;
+    }
+  }
+  if (now == null) {
+    screencastLog('portal frontend did not come back after a restart; check '
+        'systemctl --user status $portalFrontendUnit');
   } else {
     screencastLog('portal frontend still advertises no source types after a '
         'restart; check that portals.conf routes '
