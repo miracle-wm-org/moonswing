@@ -1060,8 +1060,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // No `keyboardMode`, deliberately: layer_shell defaults it to
     // [LayerShellKeyboardMode.none], which is what a bar wants — a panel that
     // takes focus takes it on every click and pulls it off whatever the user
-    // was typing in. The cost is that a popup inherits `none`; see
-    // [_borrowPopupKeyboard].
+    // was typing in. The cost is that a popup inherits `none`, so each one
+    // borrows the keyboard for as long as it is open; see
+    // [borrowSurfaceKeyboard].
     final controller = LayershellWindowController(
       width: width,
       height: height,
@@ -2151,19 +2152,21 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   ///
   /// Not left `onDemand`: a full-output surface that can take focus would let a
   /// stray desktop click steal it from the focused application. Cached in a set
-  /// on the [_panelMargins] precedent, and force-committed for [setPanelMargin]'s
-  /// reason.
+  /// on the [_panelMargins] precedent.
+  ///
+  /// A loan from the same count the desktop's own menus draw on
+  /// ([borrowSurfaceKeyboard]), not a flip of the surface: a rename starts from
+  /// a menu that is still closing, and that menu handing the keyboard back must
+  /// not take it from the field that has just appeared.
   void _setDesktopKeyboard(String monitorKey, bool wanted) {
     if (_desktopKeyboard.contains(monitorKey) == wanted) return;
     final controller = _surfaces[monitorKey]?.background;
     if (controller == null) return;
-    controller.setKeyboardMode(
-      wanted ? LayerShellKeyboardMode.onDemand : LayerShellKeyboardMode.none,
-    );
-    controller.tryForceCommit();
     if (wanted) {
+      borrowSurfaceKeyboard(controller);
       _desktopKeyboard.add(monitorKey);
     } else {
+      returnSurfaceKeyboard(controller);
       _desktopKeyboard.remove(monitorKey);
     }
   }

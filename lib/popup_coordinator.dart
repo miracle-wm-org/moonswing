@@ -62,14 +62,21 @@ class TransientHandle {
   bool closing = false;
 }
 
-/// Process-wide registry of open transient surfaces, and the one thing that
-/// closes them.
+/// Process-wide registry of open transient surfaces, and what closes one in
+/// answer to anything that happens on the shell's own surfaces.
 ///
 /// The shell renders into many independent FlutterViews and no widget tree can
 /// see another's popups: they share the root's [WindowRegistry], but a popup is a
-/// sibling view of the panel that opened it. Nothing else dismisses them either —
-/// the Linux popup controller takes no `gdk_seat_grab`, so the compositor never
-/// sends `popup_done`, and there is no focus-lost callback anywhere in the stack.
+/// sibling view of the panel that opened it. The Linux popup controller takes no
+/// `gdk_seat_grab`, so the compositor never sends `popup_done`.
+///
+/// The one close that is not this class's is focus moving to another window —
+/// an application's, say. The SDK's popup controller destroys a popup when the
+/// top level it belongs to goes from active to inactive, and every popup but a
+/// hover label makes its panel focusable for as long as it is open so that this
+/// can happen (`borrowSurfaceKeyboard` in `popup.dart`). The destroyed window
+/// reports back through the host's delegate, which closes the popup and
+/// releases its handle here like any other close.
 class PopupCoordinator extends ChangeNotifier {
   PopupCoordinator._();
 

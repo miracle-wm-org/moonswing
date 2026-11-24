@@ -133,9 +133,6 @@ class _StockTickerState extends State<StockTicker>
         width: kStockPopupWidth,
         height: kStockPopupHeight,
       ),
-      // The search field is an `EditableText` on a popup of the panel, which
-      // inherits the panel's keyboard interactivity — and a panel takes none.
-      needsKeyboard: true,
       child: ThemeProvider(
         child: StockPopup(
           store: widget.store,
