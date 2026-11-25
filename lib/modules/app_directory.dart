@@ -61,11 +61,6 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
         maxWidth: 300,
         maxHeight: 1200,
       ),
-      // The search field is an [EditableText] on an `xdg_popup` child of the
-      // panel, which inherits the panel's keyboard interactivity — and every
-      // panel is `none`, so without this the field comes up and cannot be
-      // typed into.
-      needsKeyboard: true,
       child: ThemeProvider(
         child: _AppDirectory(
           iconSize: widget.iconSize,
