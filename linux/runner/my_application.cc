@@ -1,5 +1,7 @@
 #include "my_application.h"
 
+#include <dlfcn.h>
+
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
@@ -13,6 +15,85 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// The engine's render context is the raster thread's, and this keeps the GTK
+// thread from walking off with it.
+//
+// A view's renderer, as it is realized, asks the driver whether it can blit,
+// and to ask it makes the engine's *render* context current on the thread it
+// is realized on — this one (`fl_compositor_opengl_new`). Nothing gives it
+// back. EGL lets a context be current on one thread at a time, so that call
+// fails harmlessly for as long as the raster thread holds the context, which
+// used to be always. Since the Wayland subsurface renderer it is not: the
+// raster thread presents each frame with the subsurface's own context current
+// and returns to the render context afterwards. A window realized inside one
+// of those presents — any second bar, background or popup, while any view is
+// drawing — takes the context, the raster thread's `eglMakeCurrent` is
+// refused from then on, and every view stops: `Could not make the context
+// current to acquire the frame`, once per frame, behind `Timed out waiting for
+// subsurface frame` for each window still waiting on its first.
+//
+// The embedder already hands the context back for the first view, before it
+// starts the engine (`realize_cb` in fl_view.cc). This does the same for every
+// view: an emission hook on GtkWidget::realize, which GLib runs straight after
+// the renderer's own class handler, so the context is on the wrong thread for
+// a few instructions rather than for the rest of the session. Leaving this
+// thread with no context is the state it is in after the first view anyway,
+// and everything the embedder draws from it makes its own current first.
+//
+// A stopgap, and an unproven one. The account above is read off the embedder's
+// source: the failure has not been reproduced, so nothing yet shows this is
+// what stops it. The fix belongs upstream, in `fl_compositor_opengl_new`
+// (probe with the platform context, not the render one); remove this when
+// that lands.
+//
+// Here rather than in Dart because it has to be in place before the first
+// view exists and outlive a hot restart. EGL is looked up in the process, as
+// the embedder's own copy (libepoxy dlopens it): the runner links none, and
+// if it is not loaded there is nothing current to release. Only the subsurface
+// renderer is touched — the X11 one draws through a GdkGLContext, which keeps
+// its own idea of what is current.
+static void release_gl_context() {
+  using EglGetCurrentDisplay = void* (*)();
+  using EglMakeCurrent = unsigned int (*)(void*, void*, void*, void*);
+  static EglGetCurrentDisplay get_current_display = nullptr;
+  static EglMakeCurrent make_current = nullptr;
+
+  if (make_current == nullptr) {
+    void* egl = dlopen("libEGL.so.1", RTLD_LAZY | RTLD_NOLOAD);
+    if (egl == nullptr) return;
+    get_current_display = reinterpret_cast<EglGetCurrentDisplay>(
+        dlsym(egl, "eglGetCurrentDisplay"));
+    make_current =
+        reinterpret_cast<EglMakeCurrent>(dlsym(egl, "eglMakeCurrent"));
+    if (get_current_display == nullptr || make_current == nullptr) {
+      make_current = nullptr;
+      return;
+    }
+  }
+
+  // EGL_NO_DISPLAY: nothing is current on this thread.
+  void* display = get_current_display();
+  if (display == nullptr) return;
+  // EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT.
+  make_current(display, nullptr, nullptr, nullptr);
+}
+
+// GSignalEmissionHook for GtkWidget::realize.
+static gboolean widget_realized_hook(GSignalInvocationHint* hint,
+                                     guint n_param_values,
+                                     const GValue* param_values,
+                                     gpointer data) {
+  if (n_param_values > 0) {
+    gpointer widget = g_value_peek_pointer(&param_values[0]);
+    if (widget != nullptr &&
+        g_strcmp0(G_OBJECT_TYPE_NAME(widget), "FlViewRendererSubsurface") ==
+            0) {
+      release_gl_context();
+    }
+  }
+  return TRUE;  // Stay connected.
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -90,6 +171,14 @@ static void my_application_activate(GApplication* application) {
       impeller != nullptr && g_strcmp0(impeller, "") != 0 &&
       g_strcmp0(impeller, "0") != 0;
   fl_dart_project_set_enable_impeller(project, enable_impeller);
+
+  // Before the first view is realized; GtkWidget's signals exist by now, the
+  // window above being one.
+  guint realize_signal = g_signal_lookup("realize", GTK_TYPE_WIDGET);
+  if (realize_signal != 0) {
+    g_signal_add_emission_hook(realize_signal, 0, widget_realized_hook, nullptr,
+                               nullptr);
+  }
 
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
